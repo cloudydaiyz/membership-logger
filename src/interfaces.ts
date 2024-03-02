@@ -15,6 +15,7 @@ interface Member {
 	birthday: Date,
 
 	properties: SimpleMap<string, string> // for additional properties, property name to property value
+    eventsAttended: Event[]
 }
 
 interface EventType {

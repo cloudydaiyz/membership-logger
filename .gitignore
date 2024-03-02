@@ -1,1 +1,3 @@
 dst/
+config/*
+!config/templates
