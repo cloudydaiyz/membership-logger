@@ -5,8 +5,8 @@ import { Group } from "./group.js";
 import { QuestionPropertyMatch } from "./interfaces.js";
 
 export class OperationBuilder {
-	hash: string;
-	group: Group;
+    hash: string;
+    group: Group;
     keysToExclude: string[];
 
     constructor(hash: string, group: Group) {
@@ -27,13 +27,13 @@ export class OperationBuilder {
 }
 
 export class UpdateEventBuilder extends OperationBuilder {
-	eventID?: number;
-	eventTitle?: string;
-	eventDate?: string;
-	signInSheetURI?: string;
-	eventType?: string;
-	lastUpdated?: Date;
-	questionToPropertyMap?: QuestionPropertyMatch[];
+    eventID?: number;
+    eventTitle?: string;
+    eventDate?: string;
+    signInSheetURI?: string;
+    eventType?: string;
+    lastUpdated?: Date;
+    questionToPropertyMap?: QuestionPropertyMatch[];
 
     constructor(hash: string, group: Group) {
         super(hash, group);
@@ -48,11 +48,11 @@ export class UpdateEventBuilder extends OperationBuilder {
 }
 
 export class CreateSignInBuilder extends OperationBuilder {
-	eventHostEmail?: string;
-	eventTitle?: string;
-	eventDate?: Date;
-	signInTemplateURI?: string;
-	questionToPropertyMap?: QuestionPropertyMatch[];
+    eventHostEmail?: string;
+    eventTitle?: string;
+    eventDate?: Date;
+    signInTemplateURI?: string;
+    questionToPropertyMap?: QuestionPropertyMatch[];
 
     constructor(hash: string, group: Group) {
         super(hash, group);

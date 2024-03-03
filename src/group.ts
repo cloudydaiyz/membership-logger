@@ -17,13 +17,13 @@ class SIMSGenerator {
 
 export class Group {
     id: number;
-	name: string;
-	eventTypes!: EventType[];
+    name: string;
+    eventTypes!: EventType[];
     events!: Event[];
     members!: SimpleMap<string, Member>;
     memberKey: string;
     numMembers: number;
-	simsGenerator: SIMSGenerator;
+    simsGenerator: SIMSGenerator;
     logSheetURI: string;
     metadata!: SimpleMap<string, string>; // key-value map
     builders: SimpleMap<string, OperationBuilder> // maps a hash to a Builder
