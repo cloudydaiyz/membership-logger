@@ -1,10 +1,12 @@
 // Handles all Group functionality, including updating logs and log operations
+import { Event, EventType, SimpleMap, Member } from "./interfaces.js";
+import { OperationBuilder } from "./builders.js";
 
 class SIMSGenerator {
 
 }
 
-class Group {
+export class Group {
     id: number;
 	name: string;
 	eventTypes!: EventType[];
@@ -23,7 +25,7 @@ class Group {
         this.memberKey = "utEID";
         this.simsGenerator = new SIMSGenerator();
         this.builders = {};
-        
+
         this.obtainLogInfo();
     }
 

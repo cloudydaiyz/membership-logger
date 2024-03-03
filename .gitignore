@@ -1,3 +1,6 @@
 dst/
 config/*
 !config/templates
+node_modules/
+src/google-client.ts
+.DS_Store

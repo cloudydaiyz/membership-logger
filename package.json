@@ -1,0 +1,29 @@
+{
+  "name": "membership-logger",
+  "version": "1.0.0",
+  "description": "Application that handles updating membership logs via Google Sheets",
+  "main": "dst/app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "node dst/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudydaiyz/membership-logger.git"
+  },
+  "author": "ABCS Devs",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cloudydaiyz/membership-logger/issues"
+  },
+  "type": "module",
+  "homepage": "https://github.com/cloudydaiyz/membership-logger#readme",
+  "dependencies": {
+    "@google-cloud/local-auth": "^2.1.0",
+    "googleapis": "^105.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24"
+  }
+}

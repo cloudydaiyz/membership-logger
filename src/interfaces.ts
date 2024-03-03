@@ -1,10 +1,10 @@
 // All relevant interfaces and types
 
-type SimpleMap<K extends string | number | symbol, V> = {
+export type SimpleMap<K extends string | number | symbol, V> = {
     [key in K]: V;
 };
 
-interface Member {
+export interface Member {
 	memberID: number,
 	firstName: string,
 	lastName: string,
@@ -18,22 +18,22 @@ interface Member {
     eventsAttended: Event[]
 }
 
-interface EventType {
+export interface EventType {
 	name: string,
 	points: number
 }
 
-enum SourceType {
+export enum SourceType {
 	GoogleForms,
 	GoogleSheets
 }
 
-interface QuestionData {
+export interface QuestionData {
 	questionIdToPropertyMap: SimpleMap<string, string>, // maps question IDs to member properties
 	questionToIdMap: SimpleMap<string, string> // maps questions to corresponding question ID
 }
 
-interface Event {
+export interface Event {
 	eventName: string,
 	eventDate: Date,
     eventType: EventType,
@@ -48,7 +48,7 @@ interface Event {
 	memberProperties: string[] // lists all member properties (including firstName, lastName, utEID, etc.)
 }
 
-interface QuestionPropertyMatch {
+export interface QuestionPropertyMatch {
 	question: string;
 	questionId: string;
 	property: string;

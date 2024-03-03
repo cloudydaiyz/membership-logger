@@ -1,8 +1,10 @@
 // All builders
 // Whenever an operation requires more than one step, a builder is created
 // for that operation in order to process the data through multiple requests.
+import { Group } from "./group.js";
+import { QuestionPropertyMatch } from "./interfaces.js";
 
-class OperationBuilder {
+export class OperationBuilder {
 	hash: string;
 	group: Group;
     keysToExclude: string[];
@@ -24,7 +26,7 @@ class OperationBuilder {
     }
 }
 
-class UpdateEventBuilder extends OperationBuilder {
+export class UpdateEventBuilder extends OperationBuilder {
 	eventID?: number;
 	eventTitle?: string;
 	eventDate?: string;
@@ -45,7 +47,7 @@ class UpdateEventBuilder extends OperationBuilder {
     }
 }
 
-class CreateSignInBuilder extends OperationBuilder {
+export class CreateSignInBuilder extends OperationBuilder {
 	eventHostEmail?: string;
 	eventTitle?: string;
 	eventDate?: Date;
