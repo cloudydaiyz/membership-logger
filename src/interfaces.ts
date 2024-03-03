@@ -19,6 +19,7 @@ export interface Member {
 }
 
 export interface EventType {
+    id: number,
 	name: string,
 	points: number
 }
@@ -37,13 +38,13 @@ export interface Event {
 	eventName: string,
 	eventDate: Date,
     eventType: EventType,
-	sourceURL: string, // original link where the data came from
+	source: string, // original link where the data came from
 	sourceType: SourceType,
 	attendees: Member[],
 	lastUpdated: Date, // if the sign in hasn't been updated since the last time we checked, we don't have to do anything!
 	
 	sims: string, // sign in mapping string
-	questionDate: QuestionData, // container for question data
+	questionData: QuestionData, // container for question data
 
 	memberProperties: string[] // lists all member properties (including firstName, lastName, utEID, etc.)
 }
