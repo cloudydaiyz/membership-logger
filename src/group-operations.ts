@@ -26,6 +26,17 @@ export class OperationBuilder {
     }
 }
 
+// Operation 1: UPDATE EVENT TYPE
+export class UpdateEventTypeBuilder extends OperationBuilder {
+
+}
+
+// Operation 2: DELETE EVENT TYPE
+export class DeleteEventTypeBuilder extends OperationBuilder {
+
+}
+
+// Operation 3: IMPORT/UPDATE EVENT
 export class UpdateEventBuilder extends OperationBuilder {
     eventID?: number;
     eventTitle?: string;
@@ -37,6 +48,7 @@ export class UpdateEventBuilder extends OperationBuilder {
 
     constructor(hash: string, group: Group) {
         super(hash, group);
+        
     }
 
     build(): boolean {
@@ -47,6 +59,12 @@ export class UpdateEventBuilder extends OperationBuilder {
     }
 }
 
+// Operation 4: DELETE AN EVENT
+export class DeleteEventBuilder extends OperationBuilder {
+
+}
+
+// Operation 5: CREATE A NEW SIGN IN
 export class CreateSignInBuilder extends OperationBuilder {
     eventHostEmail?: string;
     eventTitle?: string;

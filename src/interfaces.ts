@@ -14,6 +14,7 @@ export interface Member {
     graduationYear: number,
     birthday: Date,
 
+    totalPoints: number
     properties: SimpleMap<string, string> // for additional properties, property name to property value
     eventsAttended: Event[]
 }
@@ -53,4 +54,12 @@ export interface QuestionPropertyMatch {
     question: string;
     questionId: string;
     property: string;
+}
+
+export interface GroupSettings {
+    name: string,
+    logSheetURI: string,
+    version: string,
+    simsIV: string,
+    metadata: SimpleMap<string, string>
 }
