@@ -287,7 +287,7 @@ export class Group {
     }
 
     async postToLogs(sheets: sheets_v4.Sheets) {
-        // Clear the information on the logs
+        // Clear the information on the logs //
         const res1 = await sheets.spreadsheets.values.batchClear({
             spreadsheetId: this.logSheetURI,
             requestBody: {
