@@ -1,21 +1,24 @@
 // All relevant interfaces and types
 
-export type SimpleMap<K extends string | number | symbol, V> = {
-    [key in K]: V;
-};
+export interface GenericMap<K> {
+    [key: string]: K
+}
 
 export interface Member {
+    // General Information
     memberID: number,
     firstName: string,
     lastName: string,
     utEID: string, // could move this to properties to make Member more generalized
     email: string,
     phoneNumber: string,
-    graduationYear: number,
     birthday: Date,
+    major: string,
+    graduationYear: number,
 
-    totalPoints: number
-    properties: SimpleMap<string, string> // for additional properties, property name to property value
+    // Event Data
+    totalPoints: number,
+    properties: GenericMap<string>, // for additional properties, property name to property value
     eventsAttended: Event[]
 }
 
@@ -30,9 +33,16 @@ export enum SourceType {
     GoogleSheets
 }
 
+// One question to one ID and vice versa
 export interface QuestionData {
-    questionIdToPropertyMap: SimpleMap<string, string>, // maps question IDs to member properties
-    questionToIdMap: SimpleMap<string, string> // maps questions to corresponding question ID
+    questionIdToPropertyMap: GenericMap<string>, // maps question IDs to member properties
+    questionToIdMap: GenericMap<string> // maps questions to corresponding question ID
+}
+
+export interface QuestionPropertyMatch {
+    question: string;
+    questionId: string;
+    property: string;
 }
 
 export interface Event {
@@ -42,18 +52,9 @@ export interface Event {
     source: string, // original link where the data came from
     sourceType: SourceType,
     attendees: Member[],
-    lastUpdated: Date, // if the sign in hasn't been updated since the last time we checked, we don't have to do anything!
 
     sims: string, // sign in mapping string
     questionData: QuestionData, // container for question data
-
-    memberProperties: string[] // lists all member properties (including firstName, lastName, utEID, etc.)
-}
-
-export interface QuestionPropertyMatch {
-    question: string;
-    questionId: string;
-    property: string;
 }
 
 export interface GroupSettings {
@@ -61,5 +62,5 @@ export interface GroupSettings {
     logSheetURI: string,
     version: string,
     simsIV: string,
-    metadata: SimpleMap<string, string>
+    metadata: GenericMap<string>
 }

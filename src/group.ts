@@ -1,8 +1,8 @@
 // Handles all Group functionality, including updating logs and log operations
-import { Event, EventType, SimpleMap, Member, SourceType, QuestionData, QuestionPropertyMatch, GroupSettings } from "./interfaces.js";
+import { Event, EventType, Member, SourceType, QuestionData, QuestionPropertyMatch, GroupSettings, GenericMap } from "./interfaces.js";
 import { OperationBuilder } from "./group-operations.js";
-import { forms_v1, google, sheets_v4 } from "googleapis";
-import { authorize } from "./google-client.js";
+import { google } from "googleapis";
+import { getSheets, getForms } from "./google-client.js";
 import { GaxiosResponse } from "gaxios";
 import crypto from "crypto";
 
@@ -14,6 +14,71 @@ const RANGE_MEMBERS = "Members!A3:L";
 export const SERVER_SIMS_KEY = "AssociationofBlackComputerScient";
 
 const MODIFY_SHEET = true;
+
+export function parseDateString(dateString: string) {
+    try {
+        const parts = dateString.split("/");
+        const month = parseInt(parts[0]) - 1;
+        const day = parseInt(parts[1]);
+        const year = parseInt(parts[2]);
+        return new Date(year, month, day);
+    } catch(error) {
+        return undefined;
+    }
+}
+
+export function getSemesterFromDate(date: Date) {
+    const dateMonth = date.getMonth();
+    let semester = "";
+    if(dateMonth <= 3) {
+        semester = "Spring";
+    } else if(dateMonth <= 6) {
+        semester = "Summer"
+    } else if(dateMonth <= 10) {
+        semester = "Fall";
+    } else {
+        semester = "Winter"
+    }
+
+    return semester;
+}
+
+// Validate and convert QuestionData to an array of QuestionPropertyMatch
+export function convertToQuestionPropertyMatching(data: QuestionData) {
+    const toIdMap = data.questionToIdMap;
+    const toPropertyMap = data.questionIdToPropertyMap;
+    const matches: QuestionPropertyMatch[] = [];
+
+    for(const question in toIdMap) {
+        try {
+            // Retrieve the id and property from the question data
+            const id = toIdMap[question];
+            const property = toPropertyMap[id];
+
+            // Create and store the match
+            const match: QuestionPropertyMatch = {
+                question: question,
+                questionId: id,
+                property: property
+            }
+            matches.push(match);
+        } catch(e) {
+            // Something went wrong, so this is invalid
+            return undefined;
+        }
+    }
+
+    return matches;
+}
+
+// Validate and convert an array of QuestionProertyMatch to QuestionData
+export function convertToQuestionData(matches: QuestionPropertyMatch[]): QuestionData {
+
+    for(const match in matches) {
+
+    }
+    return undefined;
+}
 
 class SIMSGenerator {
     // Creates a new matching from a Dictionary containing mappings between questions
@@ -32,7 +97,7 @@ class SIMSGenerator {
 	// 	...
 	// ]
 	// returns: a map between question IDs and member properties
-	createMatching(matchings: QuestionPropertyMatch[]): QuestionData {
+	createMatching(matchings: QuestionPropertyMatch[]) {
         const data: QuestionData = {
             questionIdToPropertyMap: {},
             questionToIdMap: {}
@@ -47,17 +112,17 @@ class SIMSGenerator {
 	// Extracts the matchings using a SIMS
 	// The same SIMS should return the same map
 	// returns: a map between question IDs and member properties
-	extractMatching(sims: string, key: string, iv: Buffer): QuestionData {
+	extractMatching(sims: string, key: string, iv: Buffer) {
         let decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
         let decrypted = decipher.update(sims, "hex", "utf-8");
         decrypted += decipher.final("utf-8");
-        return JSON.parse(decrypted);
+        return JSON.parse(decrypted) as QuestionData;
     };
 	
 	// Use a matching to generate a SIMS
 	// The same map should return the same SIMS
 	// returns: the SIMS string
-	generateSims(data: QuestionData, key: string, iv: Buffer): string {
+	generateSims(data: QuestionData, key: string, iv: Buffer) {
         const jsonifiedData = JSON.stringify(data);
         let cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
         let encrypted = cipher.update(jsonifiedData, "utf-8", "hex");
@@ -69,19 +134,22 @@ class SIMSGenerator {
 export class Group {
     id: number;
     name: string;
-    eventTypes!: EventType[];
-    events!: Event[];
-    members!: SimpleMap<string, Member>;
+    eventTypes: EventType[];
+    events: Event[];
+    members: GenericMap<Member>;
     memberKey: string;
     numMembers: number;
     simsGenerator: SIMSGenerator;
     logSheetURI: string;
-    builders: SimpleMap<string, OperationBuilder> // maps a hash to a Builder
+    builders: GenericMap<OperationBuilder> // maps a hash to a Builder
     settings: GroupSettings;
 
     constructor(id: number, settings: GroupSettings) {
         this.id = id;
         this.name = settings.name;
+        this.eventTypes = [];
+        this.events = [];
+        this.members = {};
         this.logSheetURI = settings.logSheetURI;
         this.memberKey = "utEID";
         this.simsGenerator = new SIMSGenerator();
@@ -91,21 +159,34 @@ export class Group {
         // Update settings
         if(this.settings.simsIV == "") 
             this.settings.simsIV = crypto.randomBytes(16).toString();
-
-        // this.refresh();
     }
 
-    async refresh(): Promise<boolean> {
+    async refresh(){
         this.eventTypes = [];
         this.events = [];
         this.members = {};
         this.numMembers = 0;
 
-        // Obtain authorization and intialize the Google Sheets client
-        console.log("Obtaining authorization");
-        const auth = await authorize();
-        const sheets = google.sheets({version: 'v4', auth});
-        const forms = google.forms({version: 'v1', auth});
+        // Get existing event and membership information from the logs
+        await this.getLogInfo();
+
+        // Go through the list of events, and update members accordingly
+        const asyncTasks = []; // keep track of all async tasks
+        this.events.forEach((event) => {
+            const task = this.getMemberInfoFromEvent(event);
+            asyncTasks.push(task);
+        });
+
+        // Wait for all async tasks to complete before returning
+        await Promise.all(asyncTasks);
+
+        // Post the updated data to Google Sheets
+        if( MODIFY_SHEET ) this.postToLogs(); 
+        return true;
+    }
+
+    async getLogInfo() {
+        const sheets = await getSheets();
 
         // Obtain metadata, list of event types, list of events, and existing members
         const res1 = await sheets.spreadsheets.values.batchGet({
@@ -131,9 +212,9 @@ export class Group {
         // Retrieve events from sheet data
         const events = res1.data.valueRanges[1];
         events.values.forEach((row) => {
-            let srcType: SourceType;
-            if(row[4] == "GoogleSheets") srcType = SourceType.GoogleSheets;
-            else if(row[4] == "GoogleForms") srcType = SourceType.GoogleForms;
+            let srcType: SourceType = SourceType[row[4] as string];
+            // if(row[4] == "GoogleSheets") srcType = SourceType.GoogleSheets;
+            // else if(row[4] == "GoogleForms") srcType = SourceType.GoogleForms;
 
             let questionData: QuestionData = {
                 questionIdToPropertyMap: {},
@@ -148,43 +229,36 @@ export class Group {
                 eventType: this.eventTypes[parseInt(row[5])],
                 attendees: [],
                 sims: row[6],
-                lastUpdated: row[7],
-                questionData: questionData,
-                memberProperties: []
+                questionData: questionData
             }
 
             this.events.push(event);
         });
-
-        // Go through the list of events, and update members accordingly
-        const asyncTasks = []; // keep track of all async tasks
-        this.events.forEach((event) => {
-            const errorMessage = (error) => {
-                console.log("Error occurred while obtaining sheet info");
-                console.log(`Event: ${event.eventName}; Type: ${event.sourceType}; ID: ${event.source}`);
-            };
-
-            if ( event.sourceType == SourceType.GoogleSheets ) {
-                const task = this.getEventInfoFromSheets(sheets, event)
-                    .catch(errorMessage); //.then(updateCount);
-                asyncTasks.push(task);
-            } else if ( event.sourceType == SourceType.GoogleForms ) {
-                const task = this.getEventInfoFromForms(forms, event)
-                    .catch(errorMessage); //.then(updateCount);
-                asyncTasks.push(task);
-            }
-        });
-
-        // Wait for all async tasks to complete before returning
-        await Promise.all(asyncTasks);
-
-        // Post the updated data to Google Sheets
-        if( MODIFY_SHEET ) this.postToLogs(sheets); 
-        return true;
     }
 
-    ///// HELPER FUNCTIONS /////
-    async getEventInfoFromSheets(sheets: sheets_v4.Sheets, event: Event) {
+    async getMemberInfoFromEvent(event: Event) {
+        const errorMessage = (error) => {
+            console.log("Error occurred while obtaining sheet info");
+            console.log(`Event: ${event.eventName}; Type: ${event.sourceType}; ID: ${event.source}`);
+        };
+
+        // Based on the source type, determine how to collect member info
+        let task;
+        if ( event.sourceType == SourceType.GoogleSheets ) {
+            task = this.getMemberInfoFromSheets(event)
+                .catch(errorMessage); //.then(updateCount);
+        } else if ( event.sourceType == SourceType.GoogleForms ) {
+            task = this.getMemberInfoFromForms(event)
+                .catch(errorMessage); //.then(updateCount);
+        }
+
+        // Return the Promise so that it can be awaited for
+        return task;
+    }
+
+    async getMemberInfoFromSheets(event: Event) {
+        const sheets = await getSheets();
+
         console.log(`get event ${event.eventName} from sheets`);
         const res1 = await sheets.spreadsheets.values.get({
             spreadsheetId: event.source,
@@ -192,13 +266,13 @@ export class Group {
         });
 
         res1.data.values.forEach((row, index) => {
+            // Ignore the first row since it's just the title of the columns
             if( index == 0 ) {
-                // do stuff
                 return;
             }
 
+            // Retrieve member information
             let member: Member;
-
             if(row[3] in this.members) {
                 member = this.members[row[3]];
             } else {
@@ -212,6 +286,7 @@ export class Group {
                     memberID: this.numMembers,
                     graduationYear: 2022,
                     birthday: new Date(),
+                    major: "Computer Science",
                     properties: {},
                     totalPoints: 0
                 };
@@ -224,7 +299,9 @@ export class Group {
         });
     }
 
-    async getEventInfoFromForms(forms: forms_v1.Forms, event: Event) {
+    async getMemberInfoFromForms(event: Event) {
+        const forms = await getForms();
+
         console.log(`get event ${event.eventName} from forms`);
         const res1 = await forms.forms.get({
             formId: event.source
@@ -274,6 +351,7 @@ export class Group {
                     memberID: this.numMembers,
                     graduationYear: 0,
                     birthday: new Date(),
+                    major: "Computer Science",
                     properties: {},
                     totalPoints: 0
                 }
@@ -286,9 +364,11 @@ export class Group {
         });
     }
 
-    async postToLogs(sheets: sheets_v4.Sheets) {
-        // Clear the information on the logs //
-        const res1 = await sheets.spreadsheets.values.batchClear({
+    async postToLogs() {
+        const sheets = await getSheets();
+
+        // Clear the information on the logs
+        await sheets.spreadsheets.values.batchClear({
             spreadsheetId: this.logSheetURI,
             requestBody: {
                 ranges: [
@@ -349,7 +429,7 @@ export class Group {
                 member.email,
                 member.phoneNumber,
                 member.birthday.toString(),
-                "Blah",
+                member.major,
                 member.graduationYear,
                 member.totalPoints,
                 member.totalPoints,
@@ -358,7 +438,7 @@ export class Group {
         }
 
         // Update the information on the logs with the new values
-        const res2 = await sheets.spreadsheets.values.batchUpdate({
+        await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: this.logSheetURI,
             requestBody: {
                 valueInputOption: "RAW",

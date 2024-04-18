@@ -1,27 +1,32 @@
 // All builders
 // Whenever an operation requires more than one step, a builder is created
 // for that operation in order to process the data through multiple requests.
-import { Group } from "./group.js";
-import { QuestionPropertyMatch } from "./interfaces.js";
+import { Group, parseDateString } from "./group.js";
+import { QuestionPropertyMatch, Event, SourceType, QuestionData } from "./interfaces.js";
+import crypto from "crypto";
 
 export class OperationBuilder {
     hash: string;
     group: Group;
     keysToExclude: string[];
 
-    constructor(hash: string, group: Group) {
-        this.hash = hash;
+    constructor(group: Group) {
+        this.hash = crypto.randomBytes(10).toString("hex");
         this.group = group;
         this.keysToExclude = [];
     }
 
-    areAllOptionalFieldsSet(): boolean {
+    areAllOptionalFieldsSet() {
         const optionalFields = Object.keys(this)
             .filter(key => !(key in this.keysToExclude) && this[key as keyof this] === undefined);
         return optionalFields.length === 0;
     }
+
+    log(message: string) {
+        console.log(message);
+    }
 	
-	build(): boolean {
+	build() {
         return this.areAllOptionalFieldsSet();
     }
 }
@@ -40,21 +45,64 @@ export class DeleteEventTypeBuilder extends OperationBuilder {
 export class UpdateEventBuilder extends OperationBuilder {
     eventID?: number;
     eventTitle?: string;
-    eventDate?: string;
-    signInSheetURI?: string;
-    eventType?: string;
-    lastUpdated?: Date;
+    rawEventDate?: string;
+    source?: string;
+    sourceType?: string;
+    rawEventType?: string;
     questionToPropertyMap?: QuestionPropertyMatch[];
 
-    constructor(hash: string, group: Group) {
-        super(hash, group);
-        
+    constructor(group: Group) {
+        super(group);
     }
 
-    build(): boolean {
-        let sanityCheck = super.build();
-        if(!sanityCheck) return false;
+    validateInput() {
+        if(this.eventID < 0 || this.eventID > this.group.events.length) return false;
+        if(parseDateString(this.rawEventDate) === undefined) return false;
+        if(this.sourceType != "GoogleSheets" && this.sourceType != "GoogleForms") return false;
+        if(this.group.eventTypes.filter(type => type.name != this.rawEventType).length == 0) return false;
 
+        return true;
+    }
+
+    build() {
+        // Perform sanity check first
+        if(!super.build() || !this.validateInput()) return false;
+
+        // Update input
+        const eventDate = parseDateString(this.rawEventDate);
+        const eventType = this.group.eventTypes.find(type => type.name == this.rawEventType);
+        const sourceType: SourceType = SourceType[this.sourceType];
+
+        // Check whether or not the event exists in the Group already
+        let event: Event;
+        if(0 <= this.eventID && this.eventID < this.group.events.length) {
+            event = this.group.events[this.eventID];
+            event.eventName = this.eventTitle;
+            event.eventDate = eventDate;
+            event.eventType = eventType;
+            event.source = this.source;
+            event.sourceType = sourceType;
+        } else {
+            // If the event doesn't exist, create a new event
+            let questionData: QuestionData = {
+                questionIdToPropertyMap: {},
+                questionToIdMap: {}
+            };
+
+            event = {
+                eventName: this.eventTitle,
+                eventDate: eventDate,
+                eventType: eventType,
+                source: this.source,
+                sourceType: sourceType,
+                attendees: [],
+                sims: "",
+                questionData: questionData
+            }
+        }
+
+        // Retrieve member information from event, and return false on failure
+        this.group.getMemberInfoFromEvent(event);
         return true;
     }
 }
@@ -72,11 +120,11 @@ export class CreateSignInBuilder extends OperationBuilder {
     signInTemplateURI?: string;
     questionToPropertyMap?: QuestionPropertyMatch[];
 
-    constructor(hash: string, group: Group) {
-        super(hash, group);
+    constructor(group: Group) {
+        super(group);
     }
 
-    build(): boolean {
+    build() {
         let sanityCheck = super.build();
         if(!sanityCheck) return false;
 
