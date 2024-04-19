@@ -4,9 +4,9 @@
   "description": "Application that handles updating membership logs via Google Sheets",
   "main": "dst/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsc && node dst/test.js",
     "build": "tsc",
-    "start": "node dst/app.js"
+    "start": "tsc && node dst/app.js"
   },
   "repository": {
     "type": "git",
