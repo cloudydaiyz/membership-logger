@@ -1,6 +1,4 @@
-// All builders
-// Whenever an operation requires more than one step, a builder is created
-// for that operation in order to process the data through multiple requests.
+// All operations that can be performed on a group are defined as builders in this file
 import { Group, parseDateString } from "./group.js";
 import { QuestionPropertyMatch, Event, EventType, SourceType, QuestionData, MemberProperty } from "./interfaces.js";
 import crypto from "crypto";
@@ -9,19 +7,22 @@ import crypto from "crypto";
 function updateTypeForEvent(event: Event, type: EventType) {
     for(const eid in event.attendees) {
         const member = event.attendees[eid];
-        member.totalPoints -= event.eventType.points;
-        member.totalPoints += type.points;
+
+        // Update this member's membership points
+        member.totalPoints -= event.eventType.points; // remove points from old event type
+        member.totalPoints += type.points;            // add points from new event type
     }
+
+    // Update the event's type
     event.eventType = type;
 } 
 
+// Updates the question data for an event
 async function updateQuestionDataForEvent(group: Group, event: Event, data: QuestionData) {
-    // Update event properties
     event.questionData = data;
     event.sims = group.getSims(data);
 
-    // Refresh the group to make sure the information collected from the sheets are
-    // up to date
+    // Refresh the group to ensure info collected from the sheets are up to date
     await group.refresh(false);
 }
 
@@ -47,40 +48,58 @@ export function getQuestionData(matchings: QuestionPropertyMatch[]) {
     return data;
 };
 
+// A container for all the possible group operations
+export interface Operations {
+    updateEventType?: UpdateEventTypeBuilder;
+    deleteEventType?: DeleteEventTypeBuilder;
+    updateEvent?: UpdateEventBuilder;
+    deleteEvent?: DeleteEventTypeBuilder;
+    updateQuestionData?: UpdateQuestionDataBuilder;
+}
+
+// Parent class for builders of all possible operations on a group
 export class OperationBuilder {
+    // Default fields for a builder, these get initialized by all constructors
     hash: string;
     group: Group;
 
+    // Assigns a random hash and a group to the builder
     constructor(group: Group) {
         this.hash = crypto.randomBytes(10).toString("hex");
         this.group = group;
     }
 
+    // Checks whether all fields in a builder are set
     areAllFieldsSet(): boolean {
         const fieldsUnset = Object.keys(this)
             .filter(key => this[key as keyof this] === undefined);
+
         return fieldsUnset.length === 0;
     }
 
+    // Validates the input for the builder before performing an operation
     validateInput(): boolean {
         return false;
     }
-	
+    
+    // Performs the update to the group associated with this builder
 	async performOperation(): Promise<boolean> {
         return this.areAllFieldsSet();
     }
 
+    // Performs an operation on a group if all the fields are set and all
+    // input is valid
     async build() {
         return this.areAllFieldsSet() && this.validateInput() 
             && await this.performOperation();
     }
 }
 
-// Operation 1: UPDATE EVENT TYPE
+// Operation 1: UPDATE EVENT TYPE (updateEventType)
 export class UpdateEventTypeBuilder extends OperationBuilder {
-    typeID?: number;
-    typeName?: string;
-    points?: number;
+    typeID?: number = undefined;
+    typeName?: string = undefined;
+    points?: number = undefined;
 
     constructor(group: Group) {
         super(group);
@@ -97,15 +116,14 @@ export class UpdateEventTypeBuilder extends OperationBuilder {
     }
 
     async performOperation() {
-        // Create a new event type
         let newType: EventType = {
             id: this.group.eventTypes.length,
             name: this.typeName,
             points: this.points
         };
 
+        // Update the group with the new event type
         if(this.typeID == -1) {
-            // Add the type to the list of existing event types
             this.group.eventTypes.push(newType);
         } else {
             newType.id = this.typeID;
@@ -123,10 +141,10 @@ export class UpdateEventTypeBuilder extends OperationBuilder {
     }
 }
 
-// Operation 2: DELETE EVENT TYPE
+// Operation 2: DELETE EVENT TYPE (deleteEventType)
 export class DeleteEventTypeBuilder extends OperationBuilder {
-    typeIDtoRemove?: number;
-    typeIDtoReplace?: number;
+    typeIDtoRemove?: number = undefined;
+    typeIDtoReplace?: number = undefined;
 
     constructor(group: Group) {
         super(group);
@@ -143,7 +161,9 @@ export class DeleteEventTypeBuilder extends OperationBuilder {
         // Update the events to have the new type
         const newType = this.group.eventTypes[this.typeIDtoReplace];
         this.group.events.forEach(event => {
-            updateTypeForEvent(event, newType);
+            if(event.eventType.id == this.typeIDtoRemove) {
+                updateTypeForEvent(event, newType);
+            }
         });
 
         // Delete the type out of the list of event types
@@ -156,15 +176,15 @@ export class DeleteEventTypeBuilder extends OperationBuilder {
     }
 }
 
-// Operation 3: IMPORT/UPDATE EVENT
+// Operation 3: IMPORT/UPDATE EVENT (updateEvent)
 export class UpdateEventBuilder extends OperationBuilder {
-    eventID?: number;
-    eventTitle?: string;
-    rawEventDate?: string;
-    source?: string;
-    sourceType?: string;
-    rawEventType?: string;
-    questionToPropertyMatches?: QuestionPropertyMatch[];
+    eventID: number = undefined;
+    eventTitle: string = undefined;
+    rawEventDate: string = undefined;
+    source: string = undefined;
+    sourceType: string = undefined;
+    rawEventType: string = undefined;
+    questionToPropertyMatches: QuestionPropertyMatch[] = undefined;
 
     constructor(group: Group) {
         super(group);
@@ -174,7 +194,6 @@ export class UpdateEventBuilder extends OperationBuilder {
         // Check if each of the inputs to the builder are valid
         if(this.eventID != -1 && (this.eventID < 0 
             || this.eventID >= this.group.events.length)) return false;
-        if(parseDateString(this.rawEventDate) === undefined) return false;
         if(this.sourceType != "GoogleSheets" && this.sourceType != "GoogleForms") return false;
         if(this.group.eventTypes.filter(type => type.name != this.rawEventType).length == 0) return false;
 
@@ -183,13 +202,11 @@ export class UpdateEventBuilder extends OperationBuilder {
     }
 
     async performOperation() {
-        // Get event input from the raw input
         const eventDate = parseDateString(this.rawEventDate);
         const eventType = this.group.eventTypes.find(type => type.name == this.rawEventType);
         const sourceType: SourceType = SourceType[this.sourceType];
-
         const questionData = getQuestionData(this.questionToPropertyMatches);
-        if(questionData == undefined) return false;
+        if(eventDate == undefined || questionData == undefined) return false;
 
         // Check whether or not the event exists in the Group already
         let event: Event;
@@ -227,9 +244,9 @@ export class UpdateEventBuilder extends OperationBuilder {
     }
 }
 
-// Operation 4: DELETE AN EVENT
+// Operation 4: DELETE AN EVENT (deleteEvent)
 export class DeleteEventBuilder extends OperationBuilder {
-    eventID?: number;
+    eventID?: number = undefined;
 
     constructor(group: Group) {
         super(group);
@@ -242,8 +259,9 @@ export class DeleteEventBuilder extends OperationBuilder {
     }
 
     async performOperation() {
-        // Update information for the members who attended this event
         const event = this.group.events[this.eventID];
+
+        // Update information for the members who attended this event
         for(const utEID in event.attendees) {
             const member = event.attendees[utEID];
             const eventIndex = member.eventsAttended.findIndex(currentEvent => event == currentEvent);
@@ -253,14 +271,15 @@ export class DeleteEventBuilder extends OperationBuilder {
 
         // Remove the event from the list
         this.group.events.splice(this.eventID, 1);
+
         return true;
     }
 }
 
-// Operation: EDIT QUESTION TO PROPERTY MATCHING
+// Operation: EDIT QUESTION TO PROPERTY MATCHING (updateQuestionData)
 export class UpdateQuestionDataBuilder extends OperationBuilder {
-    eventID?: number;
-    questionToPropertyMatches?: QuestionPropertyMatch[];
+    eventID?: number = undefined;
+    questionToPropertyMatches?: QuestionPropertyMatch[] = undefined;
 
     constructor(group: Group) {
         super(group);
@@ -280,6 +299,6 @@ export class UpdateQuestionDataBuilder extends OperationBuilder {
         // Update the question data for the event based on the input
         await updateQuestionDataForEvent(this.group, event, questionData);
 
-        return false;
+        return true;
     }
 }

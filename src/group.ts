@@ -1,6 +1,6 @@
 // Handles all Group functionality, including updating logs and log operations
 import { Event, EventType, Member, SourceType, QuestionData, QuestionPropertyMatch, GroupSettings, GenericMap, MemberProperty } from "./interfaces.js";
-import { OperationBuilder } from "./group-operations.js";
+import { OperationBuilder, Operations } from "./group-operations.js";
 import { google } from "googleapis";
 import { getSheets, getForms } from "./google-client.js";
 import { GaxiosResponse } from "gaxios";
@@ -48,26 +48,25 @@ export function isMemberProperty(str: string): str is MemberProperty {
             str === "Major" || str === "Graduation Year");
 }
 
-class SIMSGenerator {
-	// Extracts the matchings using a SIMS
-	// The same SIMS should return the same map
-	getQuestionDataFromSims(sims: string, key: string, iv: Buffer) {
-        let decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-        let decrypted = decipher.update(sims, "hex", "utf-8");
-        decrypted += decipher.final("utf-8");
-        return JSON.parse(decrypted) as QuestionData;
-    };
-	
-	// Uses question data to generate a SIMS
-	// The same question data object should return the same SIMS
-	generateSims(data: QuestionData, key: string, iv: Buffer) {
-        const jsonifiedData = JSON.stringify(data);
-        let cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-        let encrypted = cipher.update(jsonifiedData, "utf-8", "hex");
-        encrypted += cipher.final("hex");
-        return encrypted;
-    };
-}
+
+// Extracts the matchings using a SIMS
+// The same SIMS should return the same map
+export function getQuestionDataFromSims(sims: string, key: string, iv: Buffer) {
+    let decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+    let decrypted = decipher.update(sims, "hex", "utf-8");
+    decrypted += decipher.final("utf-8");
+    return JSON.parse(decrypted) as QuestionData;
+};
+
+// Uses question data to generate a SIMS
+// The same question data object should return the same SIMS
+export function generateSims(data: QuestionData, key: string, iv: Buffer) {
+    const jsonifiedData = JSON.stringify(data);
+    let cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    let encrypted = cipher.update(jsonifiedData, "utf-8", "hex");
+    encrypted += cipher.final("hex");
+    return encrypted;
+};
 
 export class Group {
     id: number;
@@ -76,9 +75,8 @@ export class Group {
     events: Event[];
     members: GenericMap<Member>;
     numMembers: number;
-    simsGenerator: SIMSGenerator;
     logSheetURI: string;
-    builders: GenericMap<OperationBuilder> // maps a hash to a Builder
+    allOperations: Operations;
     settings: GroupSettings;
 
     constructor(id: number, settings: GroupSettings) {
@@ -88,13 +86,12 @@ export class Group {
         this.events = [];
         this.members = {};
         this.logSheetURI = settings.logSheetURI;
-        this.simsGenerator = new SIMSGenerator();
-        this.builders = {};
+        this.allOperations = {};
         this.settings = settings;
 
         // Update settings
         if(this.settings.simsIV == "") 
-            this.settings.simsIV = crypto.randomBytes(16).toString();
+            this.settings.simsIV = crypto.randomBytes(16).toString('base64');
     }
 
     async refresh(modifyLogSheet: boolean){
@@ -414,13 +411,13 @@ export class Group {
 
     // Gets SIMS from a QuestionData object based off this group's information
     getSims(data: QuestionData) {
-        const ivBuffer = Buffer.from(this.settings.simsIV, 'utf-8');
-        return this.simsGenerator.generateSims(data, SERVER_SIMS_KEY, ivBuffer);
+        const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
+        return generateSims(data, SERVER_SIMS_KEY, ivBuffer);
     }
 
     // Gets QuestionData from a SIMS object based off this group's information
     getQuestionDataFromSims(sims: string) {
-        const ivBuffer = Buffer.from(this.settings.simsIV, 'utf-8');
-        return this.simsGenerator.getQuestionDataFromSims(sims, SERVER_SIMS_KEY, ivBuffer);
+        const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
+        return getQuestionDataFromSims(sims, SERVER_SIMS_KEY, ivBuffer);
     }
 }
