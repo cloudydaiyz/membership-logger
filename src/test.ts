@@ -18,7 +18,7 @@ async function testing() {
     }
     let exampleGroup = new Group(0, settings);
     // await exampleGroup.refresh();
-    
+
     await initGroups();
     await refreshAllGroups();
 
@@ -73,6 +73,10 @@ function simsTest() {
 
     const receivedData = getQuestionDataFromSims(sims, SERVER_SIMS_KEY, iv);
     console.log(receivedData);
+}
+
+async function groupSimsTest(group: Group) {
+    
 }
 
 async function updateEventOperationTest(group: Group) {

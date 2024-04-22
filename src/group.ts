@@ -9,6 +9,7 @@ import { RANGE_EVENTS, RANGE_EVENT_TYPES, RANGE_MEMBERS } from "./log-publisher.
 
 export const SERVER_SIMS_KEY = "AssociationofBlackComputerScient";
 
+/* HELPER METHODS */
 // Parses a new date from a string formatted as MM/DD/YYYY or "2024-04-18"
 export function parseDateString(dateString: string) {
     try {
@@ -44,7 +45,6 @@ export function isMemberProperty(str: string): str is MemberProperty {
             str === "Major" || str === "Graduation Year");
 }
 
-
 // Extracts the matchings using a SIMS
 // The same SIMS should return the same map
 export function getQuestionDataFromSims(sims: string, key: string, iv: Buffer) {
@@ -64,6 +64,7 @@ export function generateSims(data: QuestionData, key: string, iv: Buffer) {
     return encrypted;
 };
 
+/* GROUP CLASS DEFINITION */
 export class Group {
     id: number;
     name: string;
@@ -174,6 +175,36 @@ export class Group {
         });
     }
 
+    // Updates information for a single member based on a question from an event
+    updateMemberInfoFromResponse(event: Event, member: Member, 
+        questionId: string, answer: string) {
+        const property = event.questionData.questionIdToPropertyMap[questionId];
+        if(property != undefined) {
+            if(property == "First Name" && member.firstName != "") {
+                member.firstName = answer;
+            } else if(property == "Last Name" && member.lastName != "") {
+                member.lastName = answer;
+            } else if(property == "UT EID" && member.utEID != "")  {
+                member.utEID = answer;
+            } else if(property == "Email" && member.email != "") {
+                member.email = answer;
+            } else if(property == "Phone Number" && member.phoneNumber == "") {
+                member.phoneNumber = answer;
+            } else if(property == "Birthday" && member.birthday == null) {
+                member.birthday = new Date() // update this
+            } else if(property == "Major" && member.major == "") {
+                member.major = answer;
+            } else if(property == "Graduation Year" && member.graduationYear == -1) {
+                member.graduationYear = parseInt(answer);
+            }
+        }
+    }
+
+    /* GET MEMBER INFO METHODS */
+    // Each method here must update membership based off of event information and 
+    // preexisting question data
+
+    // Gets member information for an event based on its source type
     async getMemberInfoFromEvent(event: Event) {
         const errorMessage = (error) => {
             console.log(`Error occurred while obtaining sheet info: ${error}`);
@@ -195,11 +226,7 @@ export class Group {
         return task;
     }
 
-    // Get member info methods //
-    /* Each method here must:
-     * Update membership based off of event information and *preexisting
-     * question data* (* = TBD)
-     */
+    // Gets member information from an event with a source type of Google Sheets
     // question id = column # of the sheet
     async getMemberInfoFromSheets(event: Event) {
         const sheets = await getSheets();
@@ -212,9 +239,7 @@ export class Group {
 
         res1.data.values.forEach((row, index) => {
             // Ignore the first row since it's just the title of the columns
-            if( index == 0 ) {
-                return;
-            }
+            if( index == 0 ) return;
 
             // Retrieve member information
             let member: Member;
@@ -249,6 +274,7 @@ export class Group {
         return true;
     }
 
+    // Gets member information from an event with a source type of Google Forms
     // question id = question id from forms
     async getMemberInfoFromForms(event: Event) {
         const forms = await getForms();
@@ -280,7 +306,7 @@ export class Group {
                 const question = idToQuestionMap[questionId];
                 const answerObj = response.answers[questionId];
                 const answer = answerObj.textAnswers.answers[0].value;
-
+                
                 if( question == "First Name" ) { firstName = answer; }
                 else if( question == "Last Name" ) { lastName = answer; }
                 else if( question == "UT EID" ) { 
