@@ -1,5 +1,6 @@
 [
     {
+        "id": 0,
         "name": "group1's name",
         "logSheetURI": "link to group 1's membership log",
         "version": "1.0.0",

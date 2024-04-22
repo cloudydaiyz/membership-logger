@@ -1,5 +1,7 @@
 // All relevant interfaces and types
 
+import { Group } from "./group.js";
+
 export interface GenericMap<K> {
     [key: string]: K
 }
@@ -17,8 +19,7 @@ export interface Member {
     graduationYear: number,
 
     // Event Data
-    totalPoints: number,
-    eventsAttended: Event[]
+    totalPoints: number
 }
 
 export interface EventType {
@@ -35,12 +36,6 @@ export enum SourceType {
     GoogleSheets
 }
 
-// exampleInput =
-// 	{
-// 		"question": "What is your first name?",
-//		"questionId": "b9aef127",
-//		"property": "First Name"
-// 	}
 export interface QuestionPropertyMatch {
     question: string;
     questionId: string;
@@ -62,15 +57,20 @@ export interface Event {
     source: string, // original link where the data came from
     sourceType: SourceType, // note that question IDs for this event depends on the source type
     attendees: GenericMap<Member>,
-
     sims: string, // sign in mapping string
     questionData: QuestionData, // container for question data
 }
 
 export interface GroupSettings {
+    id: number,
     name: string,
     logSheetURI: string,
     version: string,
     simsIV: string,
     metadata: GenericMap<string>
+}
+
+// Maps groups to a corresponding ID
+export interface GroupMap {
+    [key: number]: Group
 }

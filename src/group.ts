@@ -1,15 +1,11 @@
 // Handles all Group functionality, including updating logs and log operations
-import { Event, EventType, Member, SourceType, QuestionData, QuestionPropertyMatch, GroupSettings, GenericMap, MemberProperty } from "./interfaces.js";
+import { Event, EventType, Member, SourceType, QuestionData, QuestionPropertyMatch, GroupSettings, GenericMap, MemberProperty } from "./group-interfaces.js";
 import { OperationBuilder, Operations } from "./group-operations.js";
 import { google } from "googleapis";
 import { getSheets, getForms } from "./google-client.js";
 import { GaxiosResponse } from "gaxios";
 import crypto from "crypto";
-
-// RANGES //
-const RANGE_EVENT_TYPES = "Event Log!A3:C";
-const RANGE_EVENTS = "Event Log!E3:J";
-const RANGE_MEMBERS = "Members!A3:L";
+import { RANGE_EVENTS, RANGE_EVENT_TYPES, RANGE_MEMBERS } from "./log-publisher.js";
 
 export const SERVER_SIMS_KEY = "AssociationofBlackComputerScient";
 
@@ -94,7 +90,19 @@ export class Group {
             this.settings.simsIV = crypto.randomBytes(16).toString('base64');
     }
 
-    async refresh(modifyLogSheet: boolean){
+    // Gets SIMS from a QuestionData object based off this group's information
+    getSims(data: QuestionData) {
+        const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
+        return generateSims(data, SERVER_SIMS_KEY, ivBuffer);
+    }
+
+    // Gets QuestionData from a SIMS object based off this group's information
+    getQuestionDataFromSims(sims: string) {
+        const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
+        return getQuestionDataFromSims(sims, SERVER_SIMS_KEY, ivBuffer);
+    }
+
+    async refresh() {
         this.eventTypes = [];
         this.events = [];
         this.members = {};
@@ -112,9 +120,6 @@ export class Group {
 
         // Wait for all async tasks to complete before returning
         await Promise.all(asyncTasks);
-
-        // Post the updated data to Google Sheets
-        if( modifyLogSheet ) this.postToLogs(); 
         return true;
     }
 
@@ -146,8 +151,6 @@ export class Group {
         const events = res1.data.valueRanges[1];
         events.values.forEach((row) => {
             let srcType: SourceType = SourceType[row[4] as string];
-            // if(row[4] == "GoogleSheets") srcType = SourceType.GoogleSheets;
-            // else if(row[4] == "GoogleForms") srcType = SourceType.GoogleForms;
 
             let questionData: QuestionData = {
                 questionIds: [],
@@ -225,7 +228,6 @@ export class Group {
                     utEID: utEID,
                     email: row[4],
                     phoneNumber: row[5],
-                    eventsAttended: [],
                     memberID: this.numMembers,
                     graduationYear: 2022,
                     birthday: new Date(),
@@ -238,7 +240,6 @@ export class Group {
 
             // Update member if they haven't already been added to this event
             if(!(utEID in event.attendees)) {
-                member.eventsAttended.push(event);
                 event.attendees[utEID] = member;
                 member.totalPoints += event.eventType.points;
             }
@@ -295,7 +296,6 @@ export class Group {
                     utEID: utEID,
                     email: email,
                     phoneNumber: phone,
-                    eventsAttended: [],
                     memberID: this.numMembers,
                     graduationYear: 0,
                     birthday: new Date(),
@@ -304,120 +304,10 @@ export class Group {
                 }
                 this.members[utEID] = member;
             }
-
-            member.eventsAttended.push(event);
             member.totalPoints += event.eventType.points;
             event.attendees[utEID] = member;
         });
 
         return true;
-    }
-
-    async postToLogs() {
-        const sheets = await getSheets();
-
-        // Clear the information on the logs
-        await sheets.spreadsheets.values.batchClear({
-            spreadsheetId: this.logSheetURI,
-            requestBody: {
-                ranges: [
-                    RANGE_EVENT_TYPES,
-                    RANGE_EVENTS,
-                    RANGE_MEMBERS
-                ]
-            }
-        });
-
-        // Initialize the values for each of the updated ranges
-        let eventTypesValues = []
-        this.eventTypes.forEach((eventType, index) => {
-            eventTypesValues.push([index, eventType.name, eventType.points]);
-        });
-
-        let eventsValues = []
-        this.events.forEach((event, index) => {
-            let sourceType;
-            if(event.sourceType == SourceType.GoogleSheets) sourceType = "GoogleSheets";
-            else if(event.sourceType == SourceType.GoogleForms) sourceType = "GoogleForms";
-
-            eventsValues.push([
-                index,
-                event.eventName,
-                event.eventDate.toString(),
-                event.source,
-                sourceType,
-                event.eventType.id
-            ]);
-        });
-
-        // For members, have the first row be the column names, and the
-        // remaining rows be the member information
-        let membersValues = [];
-        membersValues.push([
-            "ID",
-            "First Name",
-            "Last Name",
-            "UT EID",
-            "Email",
-            "Phone Number",
-            "Birthday",
-            "Major",
-            "Graduation Year",
-            "Fall Semester Points",
-            "Spring Semester Points",
-            "Total Points"
-        ]);
-
-        for(let key in this.members) {
-            const member = this.members[key];
-            membersValues.push([
-                member.memberID,
-                member.firstName,
-                member.lastName,
-                member.utEID,
-                member.email,
-                member.phoneNumber,
-                member.birthday.toString(),
-                member.major,
-                member.graduationYear,
-                member.totalPoints,
-                member.totalPoints,
-                member.totalPoints
-            ]);
-        }
-
-        // Update the information on the logs with the new values
-        await sheets.spreadsheets.values.batchUpdate({
-            spreadsheetId: this.logSheetURI,
-            requestBody: {
-                valueInputOption: "RAW",
-                data: [
-                    {
-                        range: RANGE_EVENT_TYPES,
-                        values: eventTypesValues
-                    },
-                    {
-                        range: RANGE_EVENTS,
-                        values: eventsValues
-                    },
-                    {
-                        range: RANGE_MEMBERS,
-                        values: membersValues
-                    },
-                ]
-            }
-        });
-    }
-
-    // Gets SIMS from a QuestionData object based off this group's information
-    getSims(data: QuestionData) {
-        const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
-        return generateSims(data, SERVER_SIMS_KEY, ivBuffer);
-    }
-
-    // Gets QuestionData from a SIMS object based off this group's information
-    getQuestionDataFromSims(sims: string) {
-        const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
-        return getQuestionDataFromSims(sims, SERVER_SIMS_KEY, ivBuffer);
     }
 }

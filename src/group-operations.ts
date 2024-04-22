@@ -1,6 +1,6 @@
 // All operations that can be performed on a group are defined as builders in this file
 import { Group, parseDateString } from "./group.js";
-import { QuestionPropertyMatch, Event, EventType, SourceType, QuestionData, MemberProperty } from "./interfaces.js";
+import { QuestionPropertyMatch, Event, EventType, SourceType, QuestionData, MemberProperty } from "./group-interfaces.js";
 import crypto from "crypto";
 
 // Updates an event's type
@@ -23,7 +23,7 @@ async function updateQuestionDataForEvent(group: Group, event: Event, data: Ques
     event.sims = group.getSims(data);
 
     // Refresh the group to ensure info collected from the sheets are up to date
-    await group.refresh(false);
+    await group.refresh();
 }
 
 // Creates a new QuestionData object from a list of objects containing
@@ -264,8 +264,6 @@ export class DeleteEventBuilder extends OperationBuilder {
         // Update information for the members who attended this event
         for(const utEID in event.attendees) {
             const member = event.attendees[utEID];
-            const eventIndex = member.eventsAttended.findIndex(currentEvent => event == currentEvent);
-            member.eventsAttended.splice(eventIndex, 1);
             member.totalPoints -= event.eventType.points;
         }
 

@@ -1,20 +1,21 @@
 // Testing area!
 import { DeleteEventBuilder, DeleteEventTypeBuilder, UpdateEventBuilder, UpdateEventTypeBuilder, UpdateQuestionDataBuilder, getQuestionData } from "./group-operations.js";
 import { Group, SERVER_SIMS_KEY, generateSims, getQuestionDataFromSims } from "./group.js"
-import { GroupSettings, QuestionPropertyMatch } from "./interfaces.js";
+import { GroupSettings, QuestionPropertyMatch } from "./group-interfaces.js";
 import crypto from "crypto";
-import { LOG_SHEET_ID } from "./secrets.js";
+import { EXAMPLE_LOG_SHEET_ID } from "./secrets.js";
 
 async function testing() {
     const settings: GroupSettings = {
+        id: 0,
         name: "ABCS",
-        logSheetURI: LOG_SHEET_ID,
+        logSheetURI: EXAMPLE_LOG_SHEET_ID,
         version: "1.0.0",
         simsIV: "",
         metadata: {}
     }
     let exampleGroup = new Group(0, settings);
-    await exampleGroup.refresh(false);
+    await exampleGroup.refresh();
 
     simsTest();
     // await updateEventOperationTest(exampleGroup);
