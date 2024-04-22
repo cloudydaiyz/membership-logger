@@ -3,10 +3,10 @@ import { getAllGroups, getGroup, refreshAllGroups, refreshGroup } from "./group-
 export const groupRouter = express.Router();
 
 // get all groups
-// groupRouter.get('/', (req, res) => {
-//     getAllGroups().then(val => res.send(val));
-//     // getAllGroups().then(val => res.send(JSON.stringify(val, null, 4)));
-// });
+groupRouter.get('/', (req, res) => {
+    getAllGroups().then(val => res.send(val));
+    // getAllGroups().then(val => res.send(JSON.stringify(val, null, 4)));
+});
 
 // refresh all groups
 groupRouter.post('/', (req, res) => {

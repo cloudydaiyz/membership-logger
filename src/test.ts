@@ -4,6 +4,8 @@ import { Group, SERVER_SIMS_KEY, generateSims, getQuestionDataFromSims } from ".
 import { GroupSettings, QuestionPropertyMatch } from "./group-interfaces.js";
 import crypto from "crypto";
 import { EXAMPLE_LOG_SHEET_ID } from "./secrets.js";
+import { refreshLogs } from "./log-publisher.js";
+import { initGroups, refreshAllGroups } from "./group-manager.js";
 
 async function testing() {
     const settings: GroupSettings = {
@@ -15,13 +17,16 @@ async function testing() {
         metadata: {}
     }
     let exampleGroup = new Group(0, settings);
-    await exampleGroup.refresh();
+    // await exampleGroup.refresh();
+    
+    await initGroups();
+    await refreshAllGroups();
 
-    simsTest();
+    // simsTest();
     // await updateEventOperationTest(exampleGroup);
     // await updateEventTypeTest(exampleGroup);
     // await deleteEventTypeTest(exampleGroup);
-    await deleteEventTest(exampleGroup);
+    // await deleteEventTest(exampleGroup);
     // await updateQuestionDataTest(exampleGroup);
 }
 

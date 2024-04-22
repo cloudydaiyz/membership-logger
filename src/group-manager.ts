@@ -14,12 +14,12 @@ export async function initGroups() {
     console.log(group_settings);
     
     // Create groups from each of the settings
-    group_settings.forEach(async (settings) => {
+    for(const settings of group_settings) {
         const group = new Group(settings.id, settings);
         groups[group.id] = group;
         await group.refresh();
         console.log(group);
-    });
+    }
 }
 
 // Retrieves all the groups currently stored by the app
@@ -36,12 +36,13 @@ export async function getGroup(groupID: number) {
 export async function refreshAllGroups() {
     const refreshTasks = [];
     const refreshLogsTasks = [];
+
     for(const groupID in groups) {
         const group = groups[groupID];
         refreshTasks.push(group.refresh());
         refreshLogsTasks.push(refreshLogs(group));
     }
-
+    console.log(refreshTasks);
     await Promise.all(refreshTasks);
     await Promise.all(refreshLogsTasks);
 }

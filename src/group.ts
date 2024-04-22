@@ -200,6 +200,7 @@ export class Group {
      * Update membership based off of event information and *preexisting
      * question data* (* = TBD)
      */
+    // question id = column # of the sheet
     async getMemberInfoFromSheets(event: Event) {
         const sheets = await getSheets();
 
@@ -248,6 +249,7 @@ export class Group {
         return true;
     }
 
+    // question id = question id from forms
     async getMemberInfoFromForms(event: Event) {
         const forms = await getForms();
 
