@@ -8,7 +8,7 @@ export const RANGE_EVENTS = "Event Log!E3:K";
 export const RANGE_MEMBERS = "Members!A3:L";
 
 // Updates the event & membership information in the group's log
-export async function refreshLogs(group: Group) {
+export async function updateLogsForGroup(group: Group) {
     const sheets = await getSheets();
 
     // Clear the information on the logs

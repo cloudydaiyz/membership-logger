@@ -68,14 +68,15 @@ export function generateSims(data: QuestionData, key: string, iv: Buffer) {
 export class Group {
     id: number;
     name: string;
+    logSheetURI: string;
+    settings: GroupSettings;
+
     eventTypes: EventType[];
     events: Event[];
     members: GenericMap<Member>;
     numMembers: number;
-    logSheetURI: string;
     allOperations: Operations;
-    settings: GroupSettings;
-
+    
     // Creates an empty group
     constructor(id: number, settings: GroupSettings) {
         this.id = id;
@@ -142,13 +143,7 @@ export class Group {
 
     // Empties and refreshes the event and membership information for this group
     async reset() {
-        this.eventTypes = [];
-        this.events = [];
-        this.members = {};
-        this.allOperations = {};
-        this.numMembers = 0;
-        
-        // Get preexisting event and membership information from the membership log
+        this.hardReset();
         await this.getLogInfo();
         return this.getEventData();
     }
@@ -163,6 +158,15 @@ export class Group {
         // Clear membership information from events
         this.events.forEach(event => event.attendees = {});
         return this.getEventData();
+    }
+
+    // Clears all event and membership information
+    hardReset() {
+        this.eventTypes = [];
+        this.events = [];
+        this.members = {};
+        this.allOperations = {};
+        this.numMembers = 0;
     }
 
     // Obtains the event data from the existing events in the group
@@ -195,7 +199,7 @@ export class Group {
         
         // Retrieve event types from sheet data
         const eventTypes = res1.data.valueRanges[0];
-        eventTypes.values.forEach((row, index) => {
+        eventTypes.values?.forEach((row, index) => {
             const type: EventType = {
                 id: index,
                 name: row[1],
@@ -206,7 +210,7 @@ export class Group {
 
         // Retrieve events from sheet data
         const events = res1.data.valueRanges[1];
-        events.values.forEach((row) => {
+        events.values?.forEach((row) => {
             const srcType: SourceType = SourceType[row[4] as string];
 
             // Get the question data for the event
@@ -254,17 +258,18 @@ export class Group {
     async getMemberInfoFromEvent(event: Event) {
         const errorMessage = (error) => {
             console.log(`Error occurred while obtaining sheet info: ${error}`);
-            console.log(`Event: ${event.eventName}; Type: ${event.sourceType}; ID: ${event.source}`);
+            console.log(`Event: ${event.eventName}; Type: ${event.sourceType}; `
+                + `ID: ${event.source}`);
             return false;
         };
 
         // Based on the source type, determine how to collect member info
         let task: Promise<boolean>;
         if ( event.sourceType == SourceType.GoogleSheets ) {
-            task = this.getMemberInfoFromSheets(event)
+            task = this.getMemberInfoFromSheets2(event)
                 .catch(errorMessage);
         } else if ( event.sourceType == SourceType.GoogleForms ) {
-            task = this.getMemberInfoFromForms(event)
+            task = this.getMemberInfoFromForms2(event)
                 .catch(errorMessage);
         }
 
@@ -395,19 +400,21 @@ export class Group {
         const forms = await getForms();
         console.log(`get event ${event.eventName} from forms`);
 
-        const res1 = await forms.forms.get({
+        // Obtain information from Google forms
+        const res1 = await forms.forms.get({ // list of questions from forms
+            formId: event.source
+        });
+        const res2 = await forms.forms.responses.list({ // list of responses from forms
             formId: event.source
         });
 
+        // Map question IDs to questions
         let idToQuestionMap = {};
         res1.data.items.forEach((item) => {
             idToQuestionMap[item.questionItem.question.questionId] = item.title;
         });
-
-        const res2 = await forms.forms.responses.list({
-            formId: event.source
-        });
         
+        // Update membership information from each response
         res2.data.responses.forEach((response) => {
             // Go through each of the answers
             let firstName = "";

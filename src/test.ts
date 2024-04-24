@@ -4,7 +4,7 @@ import { Group, SERVER_SIMS_KEY, generateSims, getQuestionDataFromSims } from ".
 import { Event, GroupSettings, QuestionPropertyMatch, SourceType } from "./group-interfaces.js";
 import crypto from "crypto";
 import { EXAMPLE_LOG_SHEET_ID } from "./secrets.js";
-import { refreshLogs } from "./log-publisher.js";
+import { updateLogsForGroup } from "./log-publisher.js";
 import { initGroups, refreshAllGroups } from "./group-manager.js";
 
 async function testing() {
@@ -79,7 +79,7 @@ async function groupTest(refresh: boolean) {
     }
     let exampleGroup = new Group(0, settings);
     await exampleGroup.reset();
-    if(refresh) refreshLogs(exampleGroup);
+    if(refresh) updateLogsForGroup(exampleGroup);
 
     return exampleGroup;
 }
@@ -311,7 +311,7 @@ async function updateQuestionDataTest(group: Group) {
 
     const builder = new UpdateQuestionDataBuilder(group);
     builder.eventID = 0;
-    builder.questionToPropertyMatches = exampleMatching2;
+    builder.questionToPropertyMatches = exampleMatching1;
 
     console.log("GROUP BEFORE OPERATION:");
     console.log(group);

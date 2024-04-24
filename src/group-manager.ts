@@ -3,10 +3,11 @@ import * as fs from "node:fs/promises";
 import { Group } from "./group.js";
 import { GroupSettings, GroupMap } from "./group-interfaces.js";
 import { GROUPS_PATH } from "./secrets.js";
-import { refreshLogs } from "./log-publisher.js";
+import { updateLogsForGroup } from "./log-publisher.js";
 
 export const groups: GroupMap = {};
 
+// Initializes the groups based on the settings
 export async function initGroups() {
     // Obtain the settings for each group from the config file
     const raw_group_settings = await fs.readFile(GROUPS_PATH);
@@ -18,7 +19,6 @@ export async function initGroups() {
         const group = new Group(settings.id, settings);
         groups[group.id] = group;
         await group.reset();
-        console.log(group);
     }
 }
 
@@ -40,9 +40,9 @@ export async function refreshAllGroups() {
     for(const groupID in groups) {
         const group = groups[groupID];
         refreshTasks.push(group.reset());
-        refreshLogsTasks.push(refreshLogs(group));
+        refreshLogsTasks.push(updateLogsForGroup(group));
     }
-    console.log(refreshTasks);
+    
     await Promise.all(refreshTasks);
     await Promise.all(refreshLogsTasks);
 }
@@ -51,5 +51,5 @@ export async function refreshAllGroups() {
 export async function refreshGroup(groupID: number) {
     const group = groups[groupID];
     await group.reset();
-    return await refreshLogs(group);
+    return await updateLogsForGroup(group);
 }
