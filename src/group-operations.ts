@@ -19,11 +19,7 @@ function updateTypeForEvent(event: Event, type: EventType) {
 
 // Updates the question data for an event
 async function updateQuestionDataForEvent(group: Group, event: Event, data: QuestionData) {
-    event.questionData = data;
-    event.sims = group.getSims(data);
-
-    // Refresh the group to ensure info collected from the sheets are up to date
-    await group.refresh();
+    
 }
 
 // Creates a new QuestionData object from a list of objects containing
@@ -285,7 +281,6 @@ export class UpdateQuestionDataBuilder extends OperationBuilder {
 
     validateInput() {
         if(this.eventID < 0 || this.eventID >= this.group.events.length) return false;
-
         return true;
     }
 
@@ -295,8 +290,10 @@ export class UpdateQuestionDataBuilder extends OperationBuilder {
         if(questionData == undefined) return false;
 
         // Update the question data for the event based on the input
-        await updateQuestionDataForEvent(this.group, event, questionData);
+        event.questionData = questionData;
+        event.sims = this.group.getSims(questionData);
 
-        return true;
+        // Refresh the group to ensure info collected from the sheets are up to date
+        return await this.group.softReset();
     }
 }

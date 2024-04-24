@@ -7,18 +7,15 @@ export interface GenericMap<K> {
 }
 
 export interface Member {
-    // General Information
     memberID: number,
     firstName: string,
     lastName: string,
-    utEID: string, // could move this to properties to make Member more generalized
+    utEID: string,
     email: string,
     phoneNumber: string,
     birthday: Date,
     major: string,
     graduationYear: number,
-
-    // Event Data
     totalPoints: number
 }
 

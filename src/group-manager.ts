@@ -17,7 +17,7 @@ export async function initGroups() {
     for(const settings of group_settings) {
         const group = new Group(settings.id, settings);
         groups[group.id] = group;
-        await group.refresh();
+        await group.reset();
         console.log(group);
     }
 }
@@ -39,7 +39,7 @@ export async function refreshAllGroups() {
 
     for(const groupID in groups) {
         const group = groups[groupID];
-        refreshTasks.push(group.refresh());
+        refreshTasks.push(group.reset());
         refreshLogsTasks.push(refreshLogs(group));
     }
     console.log(refreshTasks);
@@ -50,6 +50,6 @@ export async function refreshAllGroups() {
 // Refreshes the information for a group
 export async function refreshGroup(groupID: number) {
     const group = groups[groupID];
-    await group.refresh();
+    await group.reset();
     return await refreshLogs(group);
 }

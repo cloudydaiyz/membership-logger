@@ -4,7 +4,7 @@ import { SourceType } from "./group-interfaces.js";
 
 // RANGES //
 export const RANGE_EVENT_TYPES = "Event Log!A3:C";
-export const RANGE_EVENTS = "Event Log!E3:J";
+export const RANGE_EVENTS = "Event Log!E3:K";
 export const RANGE_MEMBERS = "Members!A3:L";
 
 // Updates the event & membership information in the group's log
