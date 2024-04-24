@@ -115,6 +115,31 @@ export class Group {
         return undefined;
     }
 
+    // Updates information for a single member based on a question from an event
+    updateMemberInfoFromResponse(event: Event, member: Member, 
+        questionId: string, answer: string) {
+        const property = event.questionData.questionIdToPropertyMap[questionId];
+        if(property != undefined) {
+            if(property == "First Name" && member.firstName == "") {
+                member.firstName = answer;
+            } else if(property == "Last Name" && member.lastName == "") {
+                member.lastName = answer;
+            } else if(property == "UT EID" && member.utEID == "")  {
+                member.utEID = answer;
+            } else if(property == "Email" && member.email == "") {
+                member.email = answer;
+            } else if(property == "Phone Number" && member.phoneNumber == "") {
+                member.phoneNumber = answer;
+            } else if(property == "Birthday" && member.birthday == null) {
+                member.birthday = new Date() // update this
+            } else if(property == "Major" && member.major == "") {
+                member.major = answer;
+            } else if(property == "Graduation Year" && member.graduationYear == -1) {
+                member.graduationYear = parseInt(answer);
+            }
+        }
+    }
+
     // Empties and refreshes the event and membership information for this group
     async reset() {
         this.eventTypes = [];
@@ -209,31 +234,6 @@ export class Group {
             }
             this.events.push(event);
         });
-    }
-
-    // Updates information for a single member based on a question from an event
-    updateMemberInfoFromResponse(event: Event, member: Member, 
-        questionId: string, answer: string) {
-        const property = event.questionData.questionIdToPropertyMap[questionId];
-        if(property != undefined) {
-            if(property == "First Name" && member.firstName == "") {
-                member.firstName = answer;
-            } else if(property == "Last Name" && member.lastName == "") {
-                member.lastName = answer;
-            } else if(property == "UT EID" && member.utEID == "")  {
-                member.utEID = answer;
-            } else if(property == "Email" && member.email == "") {
-                member.email = answer;
-            } else if(property == "Phone Number" && member.phoneNumber == "") {
-                member.phoneNumber = answer;
-            } else if(property == "Birthday" && member.birthday == null) {
-                member.birthday = new Date() // update this
-            } else if(property == "Major" && member.major == "") {
-                member.major = answer;
-            } else if(property == "Graduation Year" && member.graduationYear == -1) {
-                member.graduationYear = parseInt(answer);
-            }
-        }
     }
 
     // Adds an event to the spreadsheet if it's able to successfully
