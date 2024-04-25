@@ -1,4 +1,6 @@
+<p align="center">
 <img width="200" alt="Screen Shot 2023-03-22 at 11 59 37 PM" src="https://github.com/cloudydaiyz/membership-logger/blob/main/assets/logo.png" />
+</p>
 
 # membership-logger
 Based on: https://github.com/cloudydaiyz/org-console
