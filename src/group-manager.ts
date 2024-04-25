@@ -1,9 +1,10 @@
 // Provides the Model for interacting with Groups
 import * as fs from "node:fs/promises";
 import { Group } from "./group.js";
-import { GroupSettings, GroupMap } from "./group-interfaces.js";
+import { GroupSettings, GroupMap, QuestionPropertyMatch } from "./group-interfaces.js";
 import { GROUPS_PATH } from "./secrets.js";
 import { updateLogsForGroup } from "./log-publisher.js";
+import { DeleteEventBuilder, DeleteEventTypeBuilder, UpdateEventBuilder, UpdateEventTypeBuilder, UpdateQuestionDataBuilder } from "./group-operations.js";
 
 export const groups: GroupMap = {};
 
@@ -16,8 +17,8 @@ export async function initGroups() {
     
     // Create groups from each of the settings
     for(const settings of group_settings) {
-        const group = new Group(settings.id, settings);
-        groups[group.id] = group;
+        const group = new Group(settings);
+        groups[settings.id] = group;
         await group.reset();
     }
 }
@@ -52,4 +53,79 @@ export async function refreshGroup(groupID: number) {
     const group = groups[groupID];
     await group.reset();
     return await updateLogsForGroup(group);
+}
+
+// Creates or updates the event type for the group
+export async function updateEventType(groupID: number, typeID: number, 
+    typeName: string, points: number) {
+    const group = groups[groupID];
+    const builder = new UpdateEventTypeBuilder(group);
+    builder.typeID = typeID;
+    builder.typeName = typeName;
+    builder.points = points;
+    return builder.build();
+}
+
+// Deletes an event type for the group
+export async function deleteEventType(groupID: number, typeIDtoRemove: number, 
+    typeIDtoReplace: number) {
+    const group = groups[groupID];
+    const builder = new DeleteEventTypeBuilder(group);
+    builder.typeIDtoRemove = typeIDtoRemove;
+    builder.typeIDtoReplace = typeIDtoReplace;
+    return builder.build();
+}
+
+// Creates or updates an event for the group
+export async function updateEvent(groupID: number, eventID: number, 
+    eventTitle: string, rawEventDate: string, source: string, sourceType: string, 
+    rawEventType: string) {
+    const group = groups[groupID];
+    const builder = new UpdateEventBuilder(group);
+    builder.eventID = eventID;
+    builder.eventTitle = eventTitle;
+    builder.rawEventDate = rawEventDate;
+    builder.source = source;
+    builder.sourceType = sourceType;
+    builder.rawEventType = rawEventType;
+
+    const task = builder.build().then(result => {
+        // If the operation is successful, then move to part 2 and edit the
+        // question to property matching
+        if(result == true) {
+            return loadQuestionData(groupID, eventID);
+        }
+    });
+    return task;
+}
+
+// Deletes the event for the group
+export async function deleteEvent(groupID: number, eventID: number) {
+    const group = groups[groupID];
+    const builder = new DeleteEventBuilder(group);
+    builder.eventID = eventID;
+    return builder.build()
+        .then(res => { 
+            if(res) loadQuestionData(groupID, eventID); 
+            return res;
+        });
+}
+
+// Loads the question data for the event in the group's log sheet
+export async function loadQuestionData(groupID: number, eventID: number) {
+    const group = groups[groupID];
+    const event = group.events[eventID];
+
+    // Go through all the questions in the event's source and load them in the 
+    // group's log sheet
+}
+
+// Updates question data for the event in the group
+export async function updateQuestionData(groupID: number, eventID: number,
+    matches: QuestionPropertyMatch[]) {
+    const group = groups[groupID];
+    const builder = new UpdateQuestionDataBuilder(group);
+    builder.eventID = eventID;
+    builder.questionToPropertyMatches = matches;
+    return builder.build();
 }

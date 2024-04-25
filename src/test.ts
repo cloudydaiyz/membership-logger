@@ -77,7 +77,7 @@ async function groupTest(refresh: boolean) {
         simsIV: "",
         metadata: {}
     }
-    let exampleGroup = new Group(0, settings);
+    let exampleGroup = new Group(settings);
     await exampleGroup.reset();
     if(refresh) updateLogsForGroup(exampleGroup);
 
@@ -195,13 +195,6 @@ async function updateEventOperationTest(group: Group) {
     builder.rawEventType = "Socials";
     builder.source = "1gF6MY54dj9Xm4CfVQR_18oRENUsFSh0Tolrm4sa4Z1w";
     builder.sourceType = "GoogleSheets";
-    builder.questionToPropertyMatches = [
-        {
-            question: "Hey",
-            questionId: '0',
-            property: "First Name"
-        }
-    ];
 
     console.log("GROUP BEFORE OPERATION:");
     console.log(group);

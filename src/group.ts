@@ -1,6 +1,6 @@
 // Handles all Group functionality, including updating logs and log operations
 import { Event, EventType, Member, SourceType, QuestionData, QuestionPropertyMatch, GroupSettings, GenericMap, MemberProperty } from "./group-interfaces.js";
-import { OperationBuilder, Operations } from "./group-operations.js";
+import { DeleteEventTypeBuilder, OperationBuilder, UpdateEventBuilder, UpdateEventTypeBuilder, UpdateQuestionDataBuilder } from "./group-operations.js";
 import { google } from "googleapis";
 import { getSheets, getForms } from "./google-client.js";
 import { GaxiosResponse } from "gaxios";
@@ -66,28 +66,31 @@ export function generateSims(data: QuestionData, key: string, iv: Buffer) {
 
 /* GROUP CLASS DEFINITION */
 export class Group {
-    id: number;
+    // Group Data
     name: string;
     logSheetURI: string;
     settings: GroupSettings;
 
+    // Event Data
     eventTypes: EventType[];
     events: Event[];
     members: GenericMap<Member>;
     numMembers: number;
-    allOperations: Operations;
+
+    // Builder(s)
+    updateQuestionDataBuilder: UpdateQuestionDataBuilder;
     
     // Creates an empty group
-    constructor(id: number, settings: GroupSettings) {
-        this.id = id;
+    constructor(settings: GroupSettings) {
         this.name = settings.name;
         this.eventTypes = [];
         this.events = [];
         this.members = {};
         this.numMembers = 0;
         this.logSheetURI = settings.logSheetURI;
-        this.allOperations = {};
         this.settings = settings;
+
+        this.updateQuestionDataBuilder = null;
 
         // Update settings
         if(this.settings.simsIV == "") 
@@ -152,7 +155,6 @@ export class Group {
     // this group
     async softReset() {
         this.members = {};
-        this.allOperations = {};
         this.numMembers = 0;
 
         // Clear membership information from events
@@ -165,7 +167,6 @@ export class Group {
         this.eventTypes = [];
         this.events = [];
         this.members = {};
-        this.allOperations = {};
         this.numMembers = 0;
     }
 

@@ -17,16 +17,6 @@ function updateTypeForEvent(event: Event, type: EventType) {
     event.eventType = type;
 } 
 
-// Updates the question data for an event
-async function updateQuestionDataForEvent(group: Group, event: Event, data: QuestionData) {
-    // Update the question data for the event based on the input
-    event.questionData = data;
-    event.sims = group.getSims(data);
-
-    // Refresh the group to ensure info collected from the sheets are up to date
-    return group.softReset();
-}
-
 // Creates a new QuestionData object from a list of objects containing
 // mappings between questions and member properties
 export function getQuestionData(matchings: QuestionPropertyMatch[]) {
@@ -48,15 +38,6 @@ export function getQuestionData(matchings: QuestionPropertyMatch[]) {
 
     return data;
 };
-
-// A container for all the possible group operations
-export interface Operations {
-    updateEventType?: UpdateEventTypeBuilder;
-    deleteEventType?: DeleteEventTypeBuilder;
-    updateEvent?: UpdateEventBuilder;
-    deleteEvent?: DeleteEventTypeBuilder;
-    updateQuestionData?: UpdateQuestionDataBuilder;
-}
 
 // Parent class for builders of all possible operations on a group
 export class OperationBuilder {
@@ -185,7 +166,6 @@ export class UpdateEventBuilder extends OperationBuilder {
     source: string = undefined;
     sourceType: string = undefined;
     rawEventType: string = undefined;
-    questionToPropertyMatches: QuestionPropertyMatch[] = undefined;
 
     constructor(group: Group) {
         super(group);
@@ -206,8 +186,7 @@ export class UpdateEventBuilder extends OperationBuilder {
         const eventDate = parseDateString(this.rawEventDate);
         const eventType = this.group.eventTypes.find(type => type.name == this.rawEventType);
         const sourceType: SourceType = SourceType[this.sourceType];
-        const questionData = getQuestionData(this.questionToPropertyMatches);
-        if(eventDate == undefined || questionData == undefined) return false;
+        if(eventDate == undefined) return false;
 
         // Check whether or not the event exists in the Group already
         let event: Event;
@@ -217,14 +196,9 @@ export class UpdateEventBuilder extends OperationBuilder {
             event.eventDate = eventDate;
             event.source = this.source;
             event.sourceType = sourceType;
-            event.sims = this.group.getSims(questionData);
-            event.questionData = questionData;
 
             // Update the event's type
             updateTypeForEvent(event, eventType);
-
-            // Update the question data for the event based on the input
-            return updateQuestionDataForEvent(this.group, event, questionData);
         }
 
         // If the event doesn't exist, create a new event
@@ -236,8 +210,12 @@ export class UpdateEventBuilder extends OperationBuilder {
             source: this.source,
             sourceType: sourceType,
             attendees: {},
-            sims: this.group.getSims(questionData),
-            questionData: questionData
+            sims: "",
+            questionData: {
+                questionIds: [],
+                questionIdToPropertyMap: undefined,
+                questionIdToQuestionMap: undefined
+            }
         }
 
         // Retrieve member information from event, and return false on failure
@@ -294,6 +272,11 @@ export class UpdateQuestionDataBuilder extends OperationBuilder {
         const questionData = getQuestionData(this.questionToPropertyMatches);
         if(questionData == undefined) return false;
 
-        return updateQuestionDataForEvent(this.group, event, questionData);
+        // Update the question data for the event based on the input
+        event.questionData = questionData;
+        event.sims = this.group.getSims(questionData);
+
+        // Refresh the group to ensure info collected from the sheets are up to date
+        return this.group.softReset();
     }
 }
