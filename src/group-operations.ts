@@ -116,7 +116,7 @@ export class UpdateEventTypeBuilder extends OperationBuilder {
             });
 
             // Replace the existing event type with this new one
-            this.group.eventTypes[this.typeID] == newType;
+            this.group.eventTypes[this.typeID] = newType;
         }
 
         return true;
@@ -186,10 +186,11 @@ export class UpdateEventBuilder extends OperationBuilder {
         const eventDate = parseDateString(this.rawEventDate);
         const eventType = this.group.eventTypes.find(type => type.name == this.rawEventType);
         const sourceType: SourceType = SourceType[this.sourceType];
-        if(eventDate == undefined) return false;
+        if(eventDate == undefined || eventType == undefined) return false;
 
         // Check whether or not the event exists in the Group already
         let event: Event;
+        let isEventNew = false;
         if(0 <= this.eventID && this.eventID < this.group.events.length) {
             event = this.group.events[this.eventID];
             event.eventName = this.eventTitle;
@@ -199,27 +200,32 @@ export class UpdateEventBuilder extends OperationBuilder {
 
             // Update the event's type
             updateTypeForEvent(event, eventType);
-        }
-
-        // If the event doesn't exist, create a new event
-        event = {
-            eventName: this.eventTitle,
-            semester: "",
-            eventDate: eventDate,
-            eventType: eventType,
-            source: this.source,
-            sourceType: sourceType,
-            attendees: {},
-            sims: "",
-            questionData: {
-                questionIds: [],
-                questionIdToPropertyMap: undefined,
-                questionIdToQuestionMap: undefined
+        } else {
+            // If the event doesn't exist, create a new event
+            isEventNew = true;
+            event = {
+                eventName: this.eventTitle,
+                semester: "",
+                eventDate: eventDate,
+                eventType: eventType,
+                source: this.source,
+                sourceType: sourceType,
+                attendees: {},
+                sims: "",
+                questionData: {
+                    questionIds: [],
+                    questionIdToPropertyMap: undefined,
+                    questionIdToQuestionMap: undefined
+                }
             }
         }
 
         // Retrieve member information from event, and return false on failure
-        return this.group.getMemberInfoFromEvent(event);
+        const retrieveMemberInfo = await this.group.getMemberInfoFromEvent(event);
+        if(retrieveMemberInfo && isEventNew) {
+            this.group.events.push(event);
+        }
+        return retrieveMemberInfo;
     }
 }
 

@@ -1,18 +1,25 @@
-import { getSheets } from "./google-client.js";
+import { getForms, getSheets } from "./google-client.js";
 import { Group } from "./group.js";
-import { SourceType } from "./group-interfaces.js";
+import { Event, SourceType } from "./group-interfaces.js";
 
 // RANGES //
 export const RANGE_EVENT_TYPES = "Event Log!A3:C";
 export const RANGE_EVENTS = "Event Log!E3:K";
 export const RANGE_MEMBERS = "Members!A3:L";
 
+export const RANGE_UPDATE_EVENT_TYPE_OP = "Event Log!N3:P5";
+export const RANGE_DELETE_EVENT_TYPE_OP = "Event Log!N9:P10";
+export const RANGE_UPDATE_EVENT_OP = "Event Log!N15:P20";
+export const RANGE_DELETE_EVENT_OP = "Event Log!N27:P27";
+export const RANGE_UPDATE_QUESTION_DATA_OP_1 = "Event Log!N32:P32";
+export const RANGE_UPDATE_QUESTION_DATA_OP_2 = "Event Log!M38:P";
+
 // Updates the event & membership information in the group's log
 export async function updateLogsForGroup(group: Group) {
     const sheets = await getSheets();
 
     // Clear the information on the logs
-    await sheets.spreadsheets.values.batchClear({
+    const res1 = await sheets.spreadsheets.values.batchClear({
         spreadsheetId: group.logSheetURI,
         requestBody: {
             ranges: [
@@ -82,10 +89,10 @@ export async function updateLogsForGroup(group: Group) {
     }
 
     // Update the information on the logs with the new values
-    await sheets.spreadsheets.values.batchUpdate({
+    const res2 = await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: group.logSheetURI,
         requestBody: {
-            valueInputOption: "RAW",
+            valueInputOption: "USER_ENTERED",
             data: [
                 {
                     range: RANGE_EVENT_TYPES,
@@ -98,8 +105,111 @@ export async function updateLogsForGroup(group: Group) {
                 {
                     range: RANGE_MEMBERS,
                     values: membersValues
-                },
+                }
             ]
         }
     });
+}
+
+// Loads question data onto the log sheet for the group from Google Sheets
+export async function loadQuestionDataFromGoogleSheets(group: Group, eventID: number, event: Event) {
+    const sheets = await getSheets();
+
+    // Get the first row of the spreadsheet -- those are the "questions" in this case
+    const res1 = await sheets.spreadsheets.values.get({
+        spreadsheetId: event.source,
+        range: "A1:ZZ1"
+    });
+
+    // Create the 2D array for the question data to update the logs with
+    const questionDataValues: any[][] = [];
+    res1.data.values[0].forEach((question, index) => {
+        const questionId = `${index}`; // for clarity
+        const currentRow = [];
+
+        // Add the question, questionId, and property to the current row
+        currentRow.push(question, "", questionId);
+
+        // Check if the question ID is in the question data for the current event
+        const questionIdCheck = event.questionData.questionIds
+            .findIndex(id => id == questionId);
+        if(questionIdCheck != -1) {
+            currentRow.push(event.questionData.questionIdToPropertyMap[questionId]);
+        } else {
+            currentRow.push(""); // empty cell
+        }
+
+        questionDataValues.push(currentRow);
+    });
+
+    return await finishLoadQuestionData(group, eventID, questionDataValues);
+}
+
+// Loads question data onto the log sheet for the group from Google Sheets
+export async function loadQuestionDataFromGoogleForms(group: Group, eventID: number, event: Event) {
+    const forms = await getForms();
+
+    // Retreive all the questions from Google Forms
+    const res1 = await forms.forms.get({ // list of questions from forms
+        formId: event.source
+    });
+
+    // Create the 2D array for the question data to update the logs with
+    const questionDataValues: any[][] = [];
+    res1.data.items.forEach(item => {
+        const question = item.title;
+        const questionId = item.questionItem.question.questionId;
+        const currentRow = [];
+
+        // Add the question, questionId, and property to the current row
+        currentRow.push(question, "", questionId);
+
+        // Check if the question ID is in the question data for the current event
+        const questionIdCheck = event.questionData.questionIds
+            .findIndex(id => id == questionId);
+        if(questionIdCheck != -1) {
+            currentRow.push(event.questionData.questionIdToPropertyMap[questionId]);
+        } else {
+            currentRow.push(""); // empty cell
+        }
+
+        questionDataValues.push(currentRow);
+    });
+
+    return await finishLoadQuestionData(group, eventID, questionDataValues);
+}
+
+async function finishLoadQuestionData(group: Group, eventID: number, values: any[][]) {
+    const sheets = await getSheets();
+
+    // Clear the data in the logs with the previous input for question data
+    const res2 = await sheets.spreadsheets.values.batchClear({
+        spreadsheetId: group.logSheetURI,
+        requestBody: {
+            ranges: [
+                RANGE_UPDATE_QUESTION_DATA_OP_1,
+                RANGE_UPDATE_QUESTION_DATA_OP_2,
+            ]
+        }
+    });
+
+    // Update the logs with the question data
+    const res3 = await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: group.logSheetURI,
+        requestBody: {
+            valueInputOption: "USER_ENTERED",
+            data: [
+                {
+                    range: RANGE_UPDATE_QUESTION_DATA_OP_1,
+                    values: [[ eventID ]]
+                },
+                {
+                    range: RANGE_UPDATE_QUESTION_DATA_OP_2,
+                    values: values
+                }
+            ]
+        }
+    });
+
+    return true;
 }

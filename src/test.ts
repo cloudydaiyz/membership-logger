@@ -4,8 +4,8 @@ import { Group, SERVER_SIMS_KEY, generateSims, getQuestionDataFromSims } from ".
 import { Event, GroupSettings, QuestionPropertyMatch, SourceType } from "./group-interfaces.js";
 import crypto from "crypto";
 import { EXAMPLE_LOG_SHEET_ID } from "./secrets.js";
-import { updateLogsForGroup } from "./log-publisher.js";
-import { initGroups, refreshAllGroups } from "./group-manager.js";
+import { loadQuestionDataFromGoogleForms, loadQuestionDataFromGoogleSheets, updateLogsForGroup } from "./log-publisher.js";
+import { deleteEventTypeFromLog, getGroup, initGroups, loadQuestionData, refreshAllGroups, updateEventFromLog, updateEventTypeFromLog } from "./group-manager.js";
 
 async function testing() {
     
@@ -14,13 +14,19 @@ async function testing() {
 
     // simsTest();
     const exampleGroup = await groupTest(false);
+    await initTestGroups([exampleGroup]);
     await getMemberInfoFromSheetsTest(exampleGroup);
     // await getMemberInfoFromFormsTest(exampleGroup);
-    // await updateEventOperationTest(exampleGroup);
+    // await updateEventTest(exampleGroup);
     // await updateEventTypeTest(exampleGroup);
     // await deleteEventTypeTest(exampleGroup);
     // await deleteEventTest(exampleGroup);
-    await updateQuestionDataTest(exampleGroup);
+    // await updateQuestionDataTest(exampleGroup);
+    // await loadQuestionDataFromGoogleSheetsTest(exampleGroup);
+    // await loadQuestionDataFromGoogleFormsTest(exampleGroup);
+    // await updateEventTypeFromLogTest();
+    // await deleteEventTypeFromLogTest();
+    await updateEventFromLogTest();
 }
 
 // Test creating and using a SIMS string 
@@ -84,6 +90,10 @@ async function groupTest(refresh: boolean) {
     return exampleGroup;
 }
 
+async function initTestGroups(groups: Group[]) {
+    return initGroups(groups, false);
+}
+
 // Test obtaining member information from Google Sheets
 async function getMemberInfoFromSheetsTest(group: Group) {
     const exampleMatching: QuestionPropertyMatch[] = [
@@ -139,27 +149,27 @@ async function getMemberInfoFromFormsTest(group: Group) {
     const exampleMatching: QuestionPropertyMatch[] = [
         {
             "question": "What is your first name?",
-            "questionId": "1",
+            "questionId": "65809e76",
             "property": "First Name"
         },
         {
             "question": "What is your last name?",
-            "questionId": "2",
+            "questionId": "1da58d25",
             "property": "Last Name"
         },
         {
             "question": "What is your UT EID?",
-            "questionId": "3",
+            "questionId": "6cf3dd44",
             "property": "UT EID"
         },
         {
             "question": "What is your Email?",
-            "questionId": "4",
+            "questionId": "540150ef",
             "property": "Email"
         },
         {
             "question": "What is your Phone Number?",
-            "questionId": "5",
+            "questionId": "3becb400",
             "property": "Phone Number"
         }
     ];
@@ -170,7 +180,7 @@ async function getMemberInfoFromFormsTest(group: Group) {
 
     // Test adding an event 
     const testEvent: Event = {
-        eventName: "General Meeting #16",
+        eventName: "General Meeting #17",
         semester: "Fall",
         eventDate: new Date(),
         eventType: group.eventTypes[0],
@@ -185,7 +195,7 @@ async function getMemberInfoFromFormsTest(group: Group) {
 }
 
 // Test the updateEvent group operation
-async function updateEventOperationTest(group: Group) {
+async function updateEventTest(group: Group) {
     console.log("OPERATIONS TEST");
 
     const builder = new UpdateEventBuilder(group);
@@ -199,6 +209,18 @@ async function updateEventOperationTest(group: Group) {
     console.log("GROUP BEFORE OPERATION:");
     console.log(group);
     const result = await builder.build();
+    console.log("GROUP AFTER OPERATION:");
+    console.log(group);
+    console.log("OPERATION RESULT: " + result);
+}
+
+async function updateEventFromLogTest() {
+    const groupID = 0;
+    const group = await getGroup(groupID);
+
+    console.log("GROUP BEFORE OPERATION:");
+    console.log(group);
+    const result = await updateEventFromLog(groupID);
     console.log("GROUP AFTER OPERATION:");
     console.log(group);
     console.log("OPERATION RESULT: " + result);
@@ -221,6 +243,18 @@ async function updateEventTypeTest(group: Group) {
     console.log("OPERATION RESULT: " + result);
 }
 
+async function updateEventTypeFromLogTest() {
+    const groupID = 0;
+    const group = await getGroup(groupID);
+
+    console.log("GROUP BEFORE OPERATION:");
+    console.log(group);
+    const result = await updateEventTypeFromLog(groupID);
+    console.log("GROUP AFTER OPERATION:");
+    console.log(group);
+    console.log("OPERATION RESULT: " + result);
+}
+
 // Test the deleteEventType operation
 async function deleteEventTypeTest(group: Group) {
     console.log("DELETE EVENT TYPE OPERATION TEST");
@@ -232,6 +266,18 @@ async function deleteEventTypeTest(group: Group) {
     console.log("GROUP BEFORE OPERATION:");
     console.log(group);
     const result = await builder.build();
+    console.log("GROUP AFTER OPERATION:");
+    console.log(group);
+    console.log("OPERATION RESULT: " + result);
+}
+
+async function deleteEventTypeFromLogTest() {
+    const groupID = 0;
+    const group = await getGroup(groupID);
+
+    console.log("GROUP BEFORE OPERATION:");
+    console.log(group);
+    const result = await deleteEventTypeFromLog(groupID);
     console.log("GROUP AFTER OPERATION:");
     console.log(group);
     console.log("OPERATION RESULT: " + result);
@@ -312,6 +358,18 @@ async function updateQuestionDataTest(group: Group) {
     console.log("GROUP AFTER OPERATION:");
     console.log(group);
     console.log("OPERATION RESULT: " + result);
+}
+
+async function loadQuestionDataFromGoogleSheetsTest(group: Group) {
+    console.log(group.events[0].sourceType);
+    console.log("LOADING QUESTION DATA FROM SHEETS");
+    await loadQuestionDataFromGoogleSheets(group, 0, group.events[0]);
+}
+
+async function loadQuestionDataFromGoogleFormsTest(group: Group) {
+    console.log(group.events[0].sourceType);
+    console.log("LOADING QUESTION DATA FROM FORMS");
+    await loadQuestionDataFromGoogleForms(group, 0, group.events[0]);
 }
 
 testing();

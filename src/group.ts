@@ -347,51 +347,50 @@ export class Group {
             }
         }
 
-        // If there's no UT EID column, discard
-        if(utEIDColumn == -1) return;
-
-        // Update members based on each row in the spreadsheet
-        res1.data.values.forEach((row, index) => {
-            // Ignore the first row since it's just the title of the columns
-            if( index == 0 ) return;
-
-            // Initialize the member
-            let member: Member = {
-                firstName: "",
-                lastName: "",
-                utEID: "",
-                email: "",
-                phoneNumber: "",
-                memberID: this.numMembers,
-                graduationYear: 0,
-                birthday: new Date(),
-                major: "",
-                totalPoints: 0
-            }
-
-            // Check if it's a pre-existing member based on the UT EID response
-            const utEID = row[utEIDColumn];
-            if(utEID == "") {
-                return; // Discard if there's no UT EID provided
-            } else if(utEID in this.members) {
-                member = this.members[utEID];
-            } else {
-                this.numMembers++;
-                this.members[utEID] = member;
-            }
-
-            // Update member information based on values in the row
-            row.forEach((val, rowIndex) => {
-                this.updateMemberInfoFromResponse(event, member, `${rowIndex}`, val);
+        // If there's a UT EID column, update members based on each row in the spreadsheet
+        if(utEIDColumn != -1) {
+            res1.data.values.forEach((row, index) => {
+                // Ignore the first row since it's just the title of the columns
+                if( index == 0 ) return;
+    
+                // Initialize the member
+                let member: Member = {
+                    firstName: "",
+                    lastName: "",
+                    utEID: "",
+                    email: "",
+                    phoneNumber: "",
+                    memberID: this.numMembers,
+                    graduationYear: 0,
+                    birthday: new Date(),
+                    major: "",
+                    totalPoints: 0
+                }
+    
+                // Check if it's a pre-existing member based on the UT EID response
+                const utEID = row[utEIDColumn];
+                if(utEID == "") {
+                    return; // Discard if there's no UT EID provided
+                } else if(utEID in this.members) {
+                    member = this.members[utEID];
+                } else {
+                    this.numMembers++;
+                    this.members[utEID] = member;
+                }
+    
+                // Update member information based on values in the row
+                row.forEach((val, rowIndex) => {
+                    this.updateMemberInfoFromResponse(event, member, `${rowIndex}`, val);
+                });
+    
+                // Add member to event if they haven't already been added
+                if(!(utEID in event.attendees)) {
+                    event.attendees[utEID] = member;
+                    member.totalPoints += event.eventType.points;
+                }
             });
-
-            // Add member to event if they haven't already been added
-            if(!(utEID in event.attendees)) {
-                event.attendees[utEID] = member;
-                member.totalPoints += event.eventType.points;
-            }
-        });
-
+        }
+        
         return true;
     }
 
@@ -405,6 +404,7 @@ export class Group {
         const res1 = await forms.forms.get({ // list of questions from forms
             formId: event.source
         });
+
         const res2 = await forms.forms.responses.list({ // list of responses from forms
             formId: event.source
         });
@@ -474,61 +474,60 @@ export class Group {
         });
 
         // Find which question ID corresponds to the UT EID
-        let utEIDQuestionID = -1;
+        let utEIDQuestionID = "";
         for(const questionId in event.questionData.questionIdToPropertyMap) {
             const property = event.questionData.questionIdToPropertyMap[questionId];
             if(property == "UT EID") {
-                utEIDQuestionID = parseInt(questionId);
+                utEIDQuestionID = questionId;
             }
         }
 
-        // If there's no UT EID question ID, discard
-        if(utEIDQuestionID == -1) return;
-        
-        // Go through each of the answers and update member info
-        res1.data.responses.forEach((response) => {
-            // Initialize the member
-            let member: Member = {
-                firstName: "",
-                lastName: "",
-                utEID: "",
-                email: "",
-                phoneNumber: "",
-                memberID: this.numMembers,
-                graduationYear: 0,
-                birthday: new Date(),
-                major: "",
-                totalPoints: 0
-            }
-
-            // Check if this response has a UT EID
-            const answers = response.answers;
-            if(!(utEIDQuestionID in response.answers)) {
-                return; // Discard if there's no UT EID provided
-            }
-            
-            // Check if it's a pre-existing member based on the UT EID response
-            const utEID = response.answers[utEIDQuestionID].textAnswers.answers[0].value;
-            if(utEID in this.members) {
-                member = this.members[utEID];
-            } else {
-                this.numMembers++;
-                this.members[utEID] = member;
-            }
-
-            // Update membership information based on responses
-            for( let questionId in response.answers ) {
-                const answerObj = response.answers[questionId];
-                const answer = answerObj.textAnswers.answers[0].value;
-                this.updateMemberInfoFromResponse(event, member, questionId, answer);
-            }
-
-            // Add member to event if they haven't already been added
-            if(!(utEID in event.attendees)) {
-                event.attendees[utEID] = member;
-                member.totalPoints += event.eventType.points;
-            }
-        });
+        // If there's a UT EID question ID, go through each of the answers and 
+        // update member info
+        if(utEIDQuestionID != "") {
+            res1.data.responses.forEach((response) => {
+                // Initialize the member
+                let member: Member = {
+                    firstName: "",
+                    lastName: "",
+                    utEID: "",
+                    email: "",
+                    phoneNumber: "",
+                    memberID: this.numMembers,
+                    graduationYear: 0,
+                    birthday: new Date(),
+                    major: "",
+                    totalPoints: 0
+                }
+    
+                // Check if this response has a UT EID
+                if(!(utEIDQuestionID in response.answers)) {
+                    return; // Discard if there's no UT EID provided
+                }
+                
+                // Check if it's a pre-existing member based on the UT EID response
+                const utEID = response.answers[utEIDQuestionID].textAnswers.answers[0].value;
+                if(utEID in this.members) {
+                    member = this.members[utEID];
+                } else {
+                    this.numMembers++;
+                    this.members[utEID] = member;
+                }
+    
+                // Update membership information based on responses
+                for( let questionId in response.answers ) {
+                    const answerObj = response.answers[questionId];
+                    const answer = answerObj.textAnswers.answers[0].value;
+                    this.updateMemberInfoFromResponse(event, member, questionId, answer);
+                }
+    
+                // Add member to event if they haven't already been added
+                if(!(utEID in event.attendees)) {
+                    event.attendees[utEID] = member;
+                    member.totalPoints += event.eventType.points;
+                }
+            });
+        }
 
         return true;
     }
