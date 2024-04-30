@@ -1,7 +1,7 @@
 {
   "name": "membership-logger",
   "version": "1.0.0",
-  "description": "Application that handles updating membership logs via Google Sheets",
+  "description": "TypeScript application that handles updating membership logs",
   "main": "dst/app.js",
   "scripts": {
     "test": "tsc && node dst/test.js",
@@ -12,7 +12,7 @@
     "type": "git",
     "url": "git+https://github.com/cloudydaiyz/membership-logger.git"
   },
-  "author": "ABCS Devs",
+  "author": "Association of Black Computer Scientists",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/cloudydaiyz/membership-logger/issues"

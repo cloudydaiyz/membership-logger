@@ -5,7 +5,7 @@ import { Event, GroupSettings, QuestionPropertyMatch, SourceType } from "./group
 import crypto from "crypto";
 import { EXAMPLE_LOG_SHEET_ID } from "./secrets.js";
 import { loadQuestionDataFromGoogleForms, loadQuestionDataFromGoogleSheets, updateLogsForGroup } from "./log-publisher.js";
-import { deleteEventTypeFromLog, getGroup, initGroups, loadQuestionData, refreshAllGroups, updateEventFromLog, updateEventTypeFromLog } from "./group-manager.js";
+import { deleteEventFromLog, deleteEventTypeFromLog, getGroup, initGroups, loadQuestionData, loadQuestionDataFromLog, refreshAllGroups, updateEventFromLog, updateEventTypeFromLog, updateQuestionDataFromLog } from "./group-manager.js";
 
 async function testing() {
     
@@ -15,9 +15,9 @@ async function testing() {
     // simsTest();
     const exampleGroup = await groupTest(false);
     await initTestGroups([exampleGroup]);
-    await getMemberInfoFromSheetsTest(exampleGroup);
+    // await getMemberInfoFromSheetsTest(exampleGroup);
     // await getMemberInfoFromFormsTest(exampleGroup);
-    // await updateEventTest(exampleGroup);
+    await updateEventTest(exampleGroup);
     // await updateEventTypeTest(exampleGroup);
     // await deleteEventTypeTest(exampleGroup);
     // await deleteEventTest(exampleGroup);
@@ -26,7 +26,10 @@ async function testing() {
     // await loadQuestionDataFromGoogleFormsTest(exampleGroup);
     // await updateEventTypeFromLogTest();
     // await deleteEventTypeFromLogTest();
-    await updateEventFromLogTest();
+    // await updateEventFromLogTest();
+    // await deleteEventFromLogTest();
+    // await loadQuestionDataFromLogsTest();
+    await updateQuestionDataFromLogsTest();
 }
 
 // Test creating and using a SIMS string 
@@ -85,7 +88,7 @@ async function groupTest(refresh: boolean) {
     }
     let exampleGroup = new Group(settings);
     await exampleGroup.reset();
-    if(refresh) updateLogsForGroup(exampleGroup);
+    if(refresh) updateLogsForGroup(exampleGroup, true, true);
 
     return exampleGroup;
 }
@@ -298,6 +301,18 @@ async function deleteEventTest(group: Group) {
     console.log("OPERATION RESULT: " + result);
 }
 
+async function deleteEventFromLogTest() {
+    const groupID = 0;
+    const group = await getGroup(groupID);
+
+    console.log("GROUP BEFORE OPERATION:");
+    console.log(group);
+    const result = await deleteEventFromLog(groupID);
+    console.log("GROUP AFTER OPERATION:");
+    console.log(group);
+    console.log("OPERATION RESULT: " + result);
+}
+
 // Test the updateQuestionData group operation
 async function updateQuestionDataTest(group: Group) {
     const exampleMatching1: QuestionPropertyMatch[] = [
@@ -363,13 +378,36 @@ async function updateQuestionDataTest(group: Group) {
 async function loadQuestionDataFromGoogleSheetsTest(group: Group) {
     console.log(group.events[0].sourceType);
     console.log("LOADING QUESTION DATA FROM SHEETS");
-    await loadQuestionDataFromGoogleSheets(group, 0, group.events[0]);
+    const result = await loadQuestionDataFromGoogleSheets(group, 0, group.events[0]);
+    console.log("OPERATION RESULT: " + result);
 }
 
 async function loadQuestionDataFromGoogleFormsTest(group: Group) {
     console.log(group.events[0].sourceType);
     console.log("LOADING QUESTION DATA FROM FORMS");
-    await loadQuestionDataFromGoogleForms(group, 0, group.events[0]);
+    const result = await loadQuestionDataFromGoogleForms(group, 0, group.events[0]);
+    console.log("OPERATION RESULT: " + result);
+}
+
+async function loadQuestionDataFromLogsTest() {
+    const groupID = 0;
+
+    console.log("LOADING QUESTION DATA FROM LOGS");
+    const result = await loadQuestionDataFromLog(groupID);
+    console.log("OPERATION RESULT: " + result);
+}
+
+async function updateQuestionDataFromLogsTest() {
+    const groupID = 0;
+    const group = await getGroup(groupID);
+
+    console.log("UPDATING QUESTION DATA FROM LOGS");
+    console.log("GROUP BEFORE OPERATION:");
+    console.log(group);
+    const result = await updateQuestionDataFromLog(groupID);
+    console.log("GROUP AFTER OPERATION:");
+    console.log(group);
+    console.log("OPERATION RESULT: " + result);
 }
 
 testing();

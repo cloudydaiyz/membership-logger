@@ -255,7 +255,8 @@ export class DeleteEventBuilder extends OperationBuilder {
         // Remove the event from the list
         this.group.events.splice(this.eventID, 1);
 
-        return true;
+        // Refresh the group to ensure info collected from the sheets are up to date
+        return this.group.softReset();
     }
 }
 

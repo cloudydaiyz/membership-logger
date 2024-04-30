@@ -2,74 +2,93 @@ import { getForms, getSheets } from "./google-client.js";
 import { Group } from "./group.js";
 import { Event, SourceType } from "./group-interfaces.js";
 
-// RANGES //
+// RANGE CONSTANTS //
 export const RANGE_EVENT_TYPES = "Event Log!A3:C";
 export const RANGE_EVENTS = "Event Log!E3:K";
-export const RANGE_MEMBERS = "Members!A3:L";
+export const RANGE_MEMBERS = "Members!A4:L";
+export const RANGE_EVENTS_ATTENDED = "Members!M2:ZZ";
 
 export const RANGE_UPDATE_EVENT_TYPE_OP = "Event Log!N3:P5";
 export const RANGE_DELETE_EVENT_TYPE_OP = "Event Log!N9:P10";
 export const RANGE_UPDATE_EVENT_OP = "Event Log!N15:P20";
 export const RANGE_DELETE_EVENT_OP = "Event Log!N27:P27";
 export const RANGE_UPDATE_QUESTION_DATA_OP_1 = "Event Log!N32:P32";
-export const RANGE_UPDATE_QUESTION_DATA_OP_2 = "Event Log!M38:P";
+export const RANGE_UPDATE_QUESTION_DATA_OP_2 = "Event Log!M39:P";
 
 // Updates the event & membership information in the group's log
-export async function updateLogsForGroup(group: Group) {
+export async function updateLogsForGroup(group: Group, includeEventTypes: boolean, 
+    includeEvents: boolean) {
     const sheets = await getSheets();
+
+    // Decide which information to update
+    const rangesToClear = [];
+    if(includeEventTypes) rangesToClear.push(RANGE_EVENT_TYPES);
+    if(includeEvents) rangesToClear.push(RANGE_EVENTS);
+    rangesToClear.push(RANGE_MEMBERS);
+    rangesToClear.push(RANGE_EVENTS_ATTENDED);
 
     // Clear the information on the logs
     const res1 = await sheets.spreadsheets.values.batchClear({
         spreadsheetId: group.logSheetURI,
         requestBody: {
-            ranges: [
-                RANGE_EVENT_TYPES,
-                RANGE_EVENTS,
-                RANGE_MEMBERS
-            ]
+            ranges: rangesToClear
         }
     });
 
     // Initialize the values for each of the updated ranges
-    let eventTypesValues = []
-    group.eventTypes.forEach((eventType, index) => {
-        eventTypesValues.push([index, eventType.name, eventType.points]);
-    });
+    const dataToUpdate = [];
 
-    let eventsValues = []
+    // Obtain the sheet values to update for event types if they're included
+    if(includeEventTypes) {
+        // We need to update the events anyways if we're updating event types
+        includeEvents = true;
+
+        let eventTypesValues = [];
+        group.eventTypes.forEach((eventType, index) => {
+            eventTypesValues.push([index, eventType.name, eventType.points]);
+        });
+
+        dataToUpdate.push({
+            range: RANGE_EVENT_TYPES,
+            values: eventTypesValues
+        });
+    }
+    
+    // Obtain the sheet values to update for events if they're included
+    if(includeEvents) {
+        let eventsValues = [];
+        group.events.forEach((event, index) => {
+            let sourceType;
+            if(event.sourceType == SourceType.GoogleSheets) sourceType = "GoogleSheets";
+            else if(event.sourceType == SourceType.GoogleForms) sourceType = "GoogleForms";
+
+            eventsValues.push([
+                index,
+                event.eventName,
+                event.eventDate.toString(),
+                event.source,
+                sourceType,
+                event.eventType.id
+            ]);
+        });
+
+        dataToUpdate.push({
+            range: RANGE_EVENTS,
+            values: eventsValues
+        });
+    }
+
+    // Initialize the sheet values to update for members
+    let eventNames = [];
+    let eventIds = [];
     group.events.forEach((event, index) => {
-        let sourceType;
-        if(event.sourceType == SourceType.GoogleSheets) sourceType = "GoogleSheets";
-        else if(event.sourceType == SourceType.GoogleForms) sourceType = "GoogleForms";
-
-        eventsValues.push([
-            index,
-            event.eventName,
-            event.eventDate.toString(),
-            event.source,
-            sourceType,
-            event.eventType.id
-        ]);
+        eventNames.push(event.eventName);
+        eventIds.push(index);
     });
+    let eventsAttendedValues = [ eventNames, eventIds ];
 
-    // For members, have the first row be the column names, and the
-    // remaining rows be the member information
+    // Obtain the sheet values to update for members
     let membersValues = [];
-    membersValues.push([
-        "ID",
-        "First Name",
-        "Last Name",
-        "UT EID",
-        "Email",
-        "Phone Number",
-        "Birthday",
-        "Major",
-        "Graduation Year",
-        "Fall Semester Points",
-        "Spring Semester Points",
-        "Total Points"
-    ]);
-
     for(let key in group.members) {
         const member = group.members[key];
         membersValues.push([
@@ -86,29 +105,38 @@ export async function updateLogsForGroup(group: Group) {
             member.totalPoints,
             member.totalPoints
         ]);
+
+        // Record the events that this member has attended as well
+        let currentEventsAttended = [];
+        group.events.forEach((event, index) => {
+            if(member.utEID in event.attendees) {
+                currentEventsAttended.push("X");
+            } else {
+                currentEventsAttended.push("");
+            }
+        });
+        eventsAttendedValues.push(currentEventsAttended);
     }
+
+    dataToUpdate.push({
+        range: RANGE_MEMBERS,
+        values: membersValues
+    });
+    dataToUpdate.push({
+        range: RANGE_EVENTS_ATTENDED,
+        values: eventsAttendedValues
+    });
 
     // Update the information on the logs with the new values
     const res2 = await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: group.logSheetURI,
         requestBody: {
             valueInputOption: "USER_ENTERED",
-            data: [
-                {
-                    range: RANGE_EVENT_TYPES,
-                    values: eventTypesValues
-                },
-                {
-                    range: RANGE_EVENTS,
-                    values: eventsValues
-                },
-                {
-                    range: RANGE_MEMBERS,
-                    values: membersValues
-                }
-            ]
+            data: dataToUpdate
         }
     });
+
+    return true;
 }
 
 // Loads question data onto the log sheet for the group from Google Sheets

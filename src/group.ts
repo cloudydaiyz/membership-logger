@@ -76,9 +76,6 @@ export class Group {
     events: Event[];
     members: GenericMap<Member>;
     numMembers: number;
-
-    // Builder(s)
-    updateQuestionDataBuilder: UpdateQuestionDataBuilder;
     
     // Creates an empty group
     constructor(settings: GroupSettings) {
@@ -89,8 +86,6 @@ export class Group {
         this.numMembers = 0;
         this.logSheetURI = settings.logSheetURI;
         this.settings = settings;
-
-        this.updateQuestionDataBuilder = null;
 
         // Update settings
         if(this.settings.simsIV == "") 
@@ -258,7 +253,7 @@ export class Group {
     // Gets member information for an event based on its source type
     async getMemberInfoFromEvent(event: Event) {
         const errorMessage = (error) => {
-            console.log(`Error occurred while obtaining sheet info: ${error}`);
+            console.log(`Error occurred while obtaining event info for ${event.sourceType}: ${error}`);
             console.log(`Event: ${event.eventName}; Type: ${event.sourceType}; `
                 + `ID: ${event.source}`);
             return false;
