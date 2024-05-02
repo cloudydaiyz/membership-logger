@@ -24,15 +24,15 @@ export async function initGroups(groupList?: Group[], groupListAppend?: boolean)
     }
 
     // Obtain the settings for each group from the config file
-    const raw_group_settings = await fs.readFile(GROUPS_PATH);
-    const group_settings = JSON.parse(String(raw_group_settings)) as GroupSettings[];
-    console.log(group_settings);
+    const rawGroupSettings = await fs.readFile(GROUPS_PATH);
+    const groupSettings = JSON.parse(String(rawGroupSettings)) as GroupSettings[];
+    console.log(groupSettings);
 
     // Keep track of the tasks from creating each group
     const createGroupTasks : Promise<boolean>[] = []
     
     // Create groups from each of the settings
-    for(const settings of group_settings) {
+    for(const settings of groupSettings) {
         const group = new Group(settings);
         groups[settings.id] = group;
 
@@ -43,8 +43,20 @@ export async function initGroups(groupList?: Group[], groupListAppend?: boolean)
             return res;
         }));
     }
+    await saveGroupSettings();
 
     return createGroupTasks;
+}
+
+// Saves the list of settings to the groups.json file
+export async function saveGroupSettings() {
+    const allSettings = [];
+    for(const groupId in groups) {
+        allSettings.push(groups[groupId].settings);
+    } 
+
+    const groupSettingsString = JSON.stringify(allSettings, null, 4);
+    await fs.writeFile(GROUPS_PATH, groupSettingsString);
 }
 
 // Retrieves all the groups currently stored by the app
@@ -64,11 +76,13 @@ export async function refreshAllGroups() {
 
     for(const groupID in groups) {
         const group = groups[groupID];
-        refreshTasks.push(group.reset());
+        refreshTasks.push(refreshGroup(parseInt(groupID)));
 
         if(UPDATE_LOGS) {
             refreshLogsTasks.push(updateLogsForGroup(group, true, true));
         }
+        refreshLogsTasks.push(group.logger.maintainCapacity());
+        refreshLogsTasks.push(group.logger.deleteOldMessages());
     }
     
     await Promise.all(refreshTasks);
@@ -79,10 +93,17 @@ export async function refreshAllGroups() {
 export async function refreshGroup(groupID: number) {
     const group = groups[groupID];
 
+    group.logger.log("REFRESH GROUP: Refreshing group...");
     return group.reset().then(res => {
         if(res && UPDATE_LOGS) {
+            group.logger.log("REFRESH GROUP: Refresh successful, now updating logs");
+            group.logger.send();
             return updateLogsForGroup(group, true, true);
-        } 
+        } else if(!res) {
+            group.logger.log("REFRESH GROUP: Refresh unsuccessful");
+        }
+
+        group.logger.send();
         return res;
     });
 }
@@ -96,11 +117,18 @@ export async function updateEventType(groupID: number, typeID: number,
     builder.typeID = typeID;
     builder.typeName = typeName;
     builder.points = points;
-
+    
+    group.logger.log("UPDATE EVENT TYPE: Performing operation...");
     return builder.build().then(res => {
         if(res && UPDATE_LOGS) {
+            group.logger.log("UPDATE EVENT TYPE: Operation successful, now updating logs");
+            group.logger.send();
             return updateLogsForGroup(group, true, true);
+        } else if(!res) {
+            group.logger.log("UPDATE EVENT TYPE: Operation unsuccessful");
         }
+
+        group.logger.send();
         return res;
     });
 }
@@ -110,6 +138,7 @@ export async function updateEventTypeFromLog(groupID: number) {
     const sheets = await getSheets();
     const group = groups[groupID];
 
+    group.logger.log("UPDATE EVENT TYPE: Obtaining log information...");
     const res1 = await sheets.spreadsheets.values.get({
         spreadsheetId: group.logSheetURI,
         majorDimension: "COLUMNS",
@@ -121,7 +150,7 @@ export async function updateEventTypeFromLog(groupID: number) {
     const eventType = inputs[1];
     const points = inputs[2] != "" ? parseInt(inputs[2]) : -1;
 
-    console.log(typeID, eventType, points);
+    group.logger.log("UPDATE EVENT TYPE: Successfully obtained log info");
     return updateEventType(groupID, typeID, eventType, points);
 }
 
@@ -132,11 +161,18 @@ export async function deleteEventType(groupID: number, typeIDtoRemove: number,
     const builder = new DeleteEventTypeBuilder(group);
     builder.typeIDtoRemove = typeIDtoRemove;
     builder.typeIDtoReplace = typeIDtoReplace;
-
+    
+    group.logger.log("DELETE EVENT TYPE: Performing operation...");
     return builder.build().then(res => {
         if(res && UPDATE_LOGS) {
+            group.logger.log("DELETE EVENT TYPE: Operation successful, now updating logs");
+            group.logger.send();
             return updateLogsForGroup(group, true, true);
+        } else if(!res) {
+            group.logger.log("DELETE EVENT TYPE: Operation unsuccessful");
         }
+
+        group.logger.send();
         return res;
     });
 }
@@ -145,6 +181,7 @@ export async function deleteEventTypeFromLog(groupID: number) {
     const sheets = await getSheets();
     const group = groups[groupID];
 
+    group.logger.log("DELETE EVENT TYPE: Obtaining log information...");
     const res1 = await sheets.spreadsheets.values.get({
         spreadsheetId: group.logSheetURI,
         majorDimension: "COLUMNS",
@@ -155,7 +192,7 @@ export async function deleteEventTypeFromLog(groupID: number) {
     const toRemove = inputs[0] != "" ? parseInt(inputs[0]) : -1;
     const toReplace = inputs[1] != "" ? parseInt(inputs[1]) : -1;
 
-    console.log(toRemove, toReplace);
+    group.logger.log("DELETE EVENT TYPE: Successfully obtained log info");
     return deleteEventType(groupID, toRemove, toReplace);
 }
 
@@ -172,10 +209,17 @@ export async function updateEvent(groupID: number, eventID: number,
     builder.sourceType = sourceType;
     builder.rawEventType = rawEventType;
 
+    group.logger.log("UPDATE EVENT: Performing operation...");
     return builder.build().then(res => {
         if(res && UPDATE_LOGS) {
+            group.logger.log("UPDATE EVENT: Operation successful, now updating logs");
+            group.logger.send();
             return updateLogsForGroup(group, false, true);
+        } else if(!res) {
+            group.logger.log("UPDATE EVENT: Operation unsuccessful");
         }
+
+        group.logger.send();
         return res;
     });
 }
@@ -184,6 +228,7 @@ export async function updateEventFromLog(groupID: number) {
     const sheets = await getSheets();
     const group = groups[groupID];
 
+    group.logger.log("UPDATE EVENT: Obtaining log information...");
     const res1 = await sheets.spreadsheets.values.get({
         spreadsheetId: group.logSheetURI,
         majorDimension: "COLUMNS",
@@ -198,7 +243,7 @@ export async function updateEventFromLog(groupID: number) {
     const sourceType = inputs[4];
     const eventType = inputs[5];
 
-    console.log(eventID, eventTitle, eventDate, source, sourceType, eventType);
+    group.logger.log("UPDATE EVENT: Successfully obtained log info");
     return updateEvent(groupID, eventID, eventTitle, eventDate, source, sourceType, eventType);
 }
 
@@ -208,10 +253,17 @@ export async function deleteEvent(groupID: number, eventID: number) {
     const builder = new DeleteEventBuilder(group);
     builder.eventID = eventID;
 
+    group.logger.log("DELETE EVENT: Performing operation...");
     return builder.build().then(res => {
         if(res && UPDATE_LOGS) {
+            group.logger.log("DELETE EVENT: Operation successful, now updating logs");
+            group.logger.send();
             return updateLogsForGroup(group, false, true);
+        } else if(!res) {
+            group.logger.log("DELETE EVENT: Operation unsuccessful");
         }
+
+        group.logger.send();
         return res;
     });
 }
@@ -220,6 +272,7 @@ export async function deleteEventFromLog(groupID: number) {
     const sheets = await getSheets();
     const group = groups[groupID];
 
+    group.logger.log("DELETE EVENT: Obtaining log information...");
     const res1 = await sheets.spreadsheets.values.get({
         spreadsheetId: group.logSheetURI,
         range: RANGE_DELETE_EVENT_OP
@@ -228,7 +281,7 @@ export async function deleteEventFromLog(groupID: number) {
     const inputs = res1.data.values[0];
     const eventID = inputs[0] != "" ? parseInt(inputs[0]) : -1;
 
-    console.log(eventID);
+    group.logger.log("DELETE EVENT: Successfully obtained log info");
     return deleteEvent(groupID, eventID);
 }
 
@@ -237,15 +290,27 @@ export async function loadQuestionData(groupID: number, eventID: number) {
     const group = groups[groupID];
     const event = group.events[eventID];
 
+    const onComplete = (res: boolean) => {
+        if(res) group.logger.log("LOAD QUESTION DATA: Load successful");
+        if(!res) group.logger.log("LOAD QUESTION DATA: Load unsuccessful");
+
+        group.logger.send();
+        return res;
+    }
+
     // Go through all the questions in the event's source and load them in the 
     // group's log sheet
     if(event.sourceType == SourceType.GoogleSheets) {
-        return loadQuestionDataFromGoogleSheets(group, eventID, event);
+        group.logger.log(`LOAD QUESTION DATA: Loading question data for event ID ${eventID} from Google Sheets...`);
+        return loadQuestionDataFromGoogleSheets(group, eventID, event).then(onComplete);
     } else if(event.sourceType == SourceType.GoogleForms) {
-        return loadQuestionDataFromGoogleForms(group, eventID, event);
+        group.logger.log(`LOAD QUESTION DATA: Loading question data for event ID ${eventID} from Google Forms...`);
+        return loadQuestionDataFromGoogleForms(group, eventID, event).then(onComplete);
     }
 
     // If it doesn't match with any of the source types, return false
+    group.logger.log("LOAD QUESTION DATA: Invalid source type");
+    group.logger.send();
     return false;
 }
 
@@ -253,6 +318,7 @@ export async function loadQuestionDataFromLog(groupID: number) {
     const sheets = await getSheets();
     const group = groups[groupID];
 
+    group.logger.log("LOAD QUESTION DATA: Obtaining log information...");
     const res1 = await sheets.spreadsheets.values.get({
         spreadsheetId: group.logSheetURI,
         range: RANGE_UPDATE_QUESTION_DATA_OP_1
@@ -261,7 +327,7 @@ export async function loadQuestionDataFromLog(groupID: number) {
     const inputs = res1.data.values[0];
     const eventID = inputs[0] != "" ? parseInt(inputs[0]) : -1;
 
-    console.log(eventID);
+    group.logger.log("LOAD QUESTION DATA: Successfully obtained log info");
     return loadQuestionData(groupID, eventID);
 }
 
@@ -272,11 +338,18 @@ export async function updateQuestionData(groupID: number, eventID: number,
     const builder = new UpdateQuestionDataBuilder(group);
     builder.eventID = eventID;
     builder.questionToPropertyMatches = matches;
-
+    
+    group.logger.log("UPDATE QUESTION DATA: Performing operation...");
     return builder.build().then(res => {
         if(res && UPDATE_LOGS) {
+            group.logger.log("UPDATE QUESTION DATA: Operation successful, now updating logs");
+            group.logger.send();
             return updateLogsForGroup(group, false, true);
+        } else if(!res) {
+            group.logger.log("UPDATE QUESTION DATA: Operation unsuccessful");
         }
+
+        group.logger.send();
         return res;
     });
 }
@@ -285,6 +358,7 @@ export async function updateQuestionDataFromLog(groupID: number) {
     const sheets = await getSheets();
     const group = groups[groupID];
 
+    group.logger.log("UPDATE QUESTION DATA: Obtaining log information...");
     const res1 = await sheets.spreadsheets.values.batchGet({
         spreadsheetId: group.logSheetURI,
         ranges: [
@@ -315,6 +389,6 @@ export async function updateQuestionDataFromLog(groupID: number) {
         }
     });
 
-    console.log(eventID);
+    group.logger.log("UPDATE QUESTION DATA: Successfully obtained log info");
     return updateQuestionData(groupID, eventID, matchings);
 }

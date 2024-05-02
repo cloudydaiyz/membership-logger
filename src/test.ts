@@ -1,11 +1,12 @@
 // Testing area!
 import { DeleteEventBuilder, DeleteEventTypeBuilder, UpdateEventBuilder, UpdateEventTypeBuilder, UpdateQuestionDataBuilder, getQuestionData } from "./group-operations.js";
-import { Group, SERVER_SIMS_KEY, generateSims, getQuestionDataFromSims } from "./group.js"
+import { Group, generateSims, getQuestionDataFromSims } from "./group.js"
 import { Event, GroupSettings, QuestionPropertyMatch, SourceType } from "./group-interfaces.js";
-import crypto from "crypto";
-import { EXAMPLE_LOG_SHEET_ID } from "./secrets.js";
+import { EXAMPLE_LOG_SHEET_ID, SERVER_SIMS_KEY } from "./secrets.js";
 import { loadQuestionDataFromGoogleForms, loadQuestionDataFromGoogleSheets, updateLogsForGroup } from "./log-publisher.js";
 import { deleteEventFromLog, deleteEventTypeFromLog, getGroup, initGroups, loadQuestionData, loadQuestionDataFromLog, refreshAllGroups, updateEventFromLog, updateEventTypeFromLog, updateQuestionDataFromLog } from "./group-manager.js";
+import dayjs from "dayjs";
+import crypto from "crypto";
 
 async function testing() {
     
@@ -14,10 +15,10 @@ async function testing() {
 
     // simsTest();
     const exampleGroup = await groupTest(false);
-    await initTestGroups([exampleGroup]);
+    // await initTestGroups([exampleGroup]);
     // await getMemberInfoFromSheetsTest(exampleGroup);
     // await getMemberInfoFromFormsTest(exampleGroup);
-    await updateEventTest(exampleGroup);
+    // await updateEventTest(exampleGroup);
     // await updateEventTypeTest(exampleGroup);
     // await deleteEventTypeTest(exampleGroup);
     // await deleteEventTest(exampleGroup);
@@ -29,7 +30,8 @@ async function testing() {
     // await updateEventFromLogTest();
     // await deleteEventFromLogTest();
     // await loadQuestionDataFromLogsTest();
-    await updateQuestionDataFromLogsTest();
+    // await updateQuestionDataFromLogsTest();
+    groupLoggerTest(exampleGroup);
 }
 
 // Test creating and using a SIMS string 
@@ -83,7 +85,7 @@ async function groupTest(refresh: boolean) {
         name: "ABCS",
         logSheetURI: EXAMPLE_LOG_SHEET_ID,
         version: "1.0.0",
-        simsIV: "",
+        simsIV: "0CcixtBxH1VQ1z4DtKQsdw==",
         metadata: {}
     }
     let exampleGroup = new Group(settings);
@@ -135,7 +137,7 @@ async function getMemberInfoFromSheetsTest(group: Group) {
     const testEvent: Event = {
         eventName: "General Meeting #16",
         semester: "Fall",
-        eventDate: new Date(),
+        eventDate: dayjs(),
         eventType: group.eventTypes[0],
         source: "1gF6MY54dj9Xm4CfVQR_18oRENUsFSh0Tolrm4sa4Z1w",
         sourceType: SourceType.GoogleSheets,
@@ -185,7 +187,7 @@ async function getMemberInfoFromFormsTest(group: Group) {
     const testEvent: Event = {
         eventName: "General Meeting #17",
         semester: "Fall",
-        eventDate: new Date(),
+        eventDate: dayjs(),
         eventType: group.eventTypes[0],
         source: "1WKRaI-KhUSaKboNi97VdWBneF9J9KWBQ-K8fKffEJMc",
         sourceType: SourceType.GoogleForms,
@@ -408,6 +410,29 @@ async function updateQuestionDataFromLogsTest() {
     console.log("GROUP AFTER OPERATION:");
     console.log(group);
     console.log("OPERATION RESULT: " + result);
+}
+
+async function groupLoggerTest(group: Group) {
+    group.logger.printOnLog = true;
+    group.logger.log("GROUP LOGGER TEST");
+    group.logger.log("Hello");
+    group.logger.log("World");
+    group.logger.log("Bonk");
+    group.logger.log("Test");
+    group.logger.log("Hello");
+    await group.logger.clear(5);
+
+    group.logger.log("Hello");
+    group.logger.log("World");
+    group.logger.log("Bonk");
+    group.logger.log("Test");
+    await group.logger.send();
+
+    group.logger.capacity = 3;
+    await group.logger.maintainCapacity();
+
+    group.logger.retainPeriod = 0;
+    await group.logger.deleteOldMessages();
 }
 
 testing();

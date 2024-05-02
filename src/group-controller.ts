@@ -3,6 +3,7 @@ import { deleteEvent, deleteEventFromLog, deleteEventType, deleteEventTypeFromLo
 import { getSheets } from "./google-client.js";
 import { QuestionPropertyMatch } from "./group-interfaces.js";
 import { isMemberProperty } from "./group.js";
+
 export const groupRouter = express.Router();
 
 // Get all groups

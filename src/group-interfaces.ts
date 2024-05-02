@@ -1,5 +1,6 @@
 // All relevant interfaces and types
 
+import { Dayjs } from "dayjs";
 import { Group } from "./group.js";
 
 export interface GenericMap<K> {
@@ -13,9 +14,11 @@ export interface Member {
     utEID: string,
     email: string,
     phoneNumber: string,
-    birthday: Date,
+    birthday: Dayjs,
     major: string,
     graduationYear: number,
+    fallPoints: number,
+    springPoints: number,
     totalPoints: number
 }
 
@@ -26,7 +29,7 @@ export interface EventType {
 }
 
 export type MemberProperty = "First Name" | "Last Name" | "UT EID" | "Email"
-    | "Phone Number" | "Birthday" | "Major" | "Graduation Year";
+    | "Phone Number" | "Birthday" | "Major" | "Graduation Year" | "";
 
 export enum SourceType {
     GoogleForms,
@@ -49,7 +52,7 @@ export interface QuestionData {
 export interface Event {
     eventName: string,
     semester: string,
-    eventDate: Date,
+    eventDate: Dayjs,
     eventType: EventType,
     source: string, // original link where the data came from
     sourceType: SourceType, // note that question IDs for this event depends on the source type

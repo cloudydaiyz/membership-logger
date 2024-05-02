@@ -1,7 +1,8 @@
 // All operations that can be performed on a group are defined as builders in this file
-import { Group, parseDateString } from "./group.js";
+import { Group, getSemesterFromDate } from "./group.js";
 import { QuestionPropertyMatch, Event, EventType, SourceType, QuestionData, MemberProperty } from "./group-interfaces.js";
 import crypto from "crypto";
+import dayjs from "dayjs";
 
 // Updates an event's type
 function updateTypeForEvent(event: Event, type: EventType) {
@@ -9,6 +10,15 @@ function updateTypeForEvent(event: Event, type: EventType) {
         const member = event.attendees[eid];
 
         // Update this member's membership points
+        const semester = getSemesterFromDate(event.eventDate);
+        if(semester == "Fall") {
+            member.fallPoints -= event.eventType.points;
+            member.fallPoints += type.points;
+        } 
+        if(semester == "Spring") {
+            member.springPoints -= event.eventType.points;
+            member.springPoints += type.points;
+        } 
         member.totalPoints -= event.eventType.points; // remove points from old event type
         member.totalPoints += type.points;            // add points from new event type
     }
@@ -183,7 +193,7 @@ export class UpdateEventBuilder extends OperationBuilder {
     }
 
     async performOperation() {
-        const eventDate = parseDateString(this.rawEventDate);
+        const eventDate = dayjs(this.rawEventDate);
         const eventType = this.group.eventTypes.find(type => type.name == this.rawEventType);
         const sourceType: SourceType = SourceType[this.sourceType];
         if(eventDate == undefined || eventType == undefined) return false;
@@ -249,6 +259,10 @@ export class DeleteEventBuilder extends OperationBuilder {
         // Update information for the members who attended this event
         for(const utEID in event.attendees) {
             const member = event.attendees[utEID];
+
+            const semester = getSemesterFromDate(event.eventDate);
+            if(semester == "Fall") member.fallPoints -= event.eventType.points;
+            if(semester == "Spring") member.springPoints -= event.eventType.points;
             member.totalPoints -= event.eventType.points;
         }
 

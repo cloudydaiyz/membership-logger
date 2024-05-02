@@ -4,29 +4,16 @@ import { DeleteEventTypeBuilder, OperationBuilder, UpdateEventBuilder, UpdateEve
 import { google } from "googleapis";
 import { getSheets, getForms } from "./google-client.js";
 import { GaxiosResponse } from "gaxios";
+import { GroupOutput, RANGE_EVENTS, RANGE_EVENT_TYPES, RANGE_GOOGLE_SHEETS_SIGN_IN, RANGE_MEMBERS } from "./log-publisher.js";
+import { saveGroupSettings } from "./group-manager.js";
+import { SERVER_SIMS_KEY } from "./secrets.js";
+import dayjs, { Dayjs } from "dayjs";
 import crypto from "crypto";
-import { RANGE_EVENTS, RANGE_EVENT_TYPES, RANGE_MEMBERS } from "./log-publisher.js";
-
-export const SERVER_SIMS_KEY = "AssociationofBlackComputerScient";
-
-/* HELPER METHODS */
-// Parses a new date from a string formatted as MM/DD/YYYY or "2024-04-18"
-export function parseDateString(dateString: string) {
-    try {
-        const parts = dateString.split("/");
-        const month = parseInt(parts[0]) - 1;
-        const day = parseInt(parts[1]);
-        const year = parseInt(parts[2]);
-        return new Date(year, month, day);
-    } catch(error) {
-        return undefined;
-    }
-}
 
 // Gets a string reflecting the semester of a date
-// NOTE: Only Spring and Fall semester for now
-export function getSemesterFromDate(date: Date) {
-    const dateMonth = date.getMonth();
+// NOTE: Only Spring and Fall semester atm
+export function getSemesterFromDate(date: Dayjs) {
+    const dateMonth = date.month();
 
     let semester = "";
     if(dateMonth < 6) {
@@ -70,6 +57,7 @@ export class Group {
     name: string;
     logSheetURI: string;
     settings: GroupSettings;
+    logger: GroupOutput;
 
     // Event Data
     eventTypes: EventType[];
@@ -87,15 +75,19 @@ export class Group {
         this.logSheetURI = settings.logSheetURI;
         this.settings = settings;
 
+        this.logger = new GroupOutput(this);
+        this.logger.printOnLog = true;
+
         // Update settings
-        if(this.settings.simsIV == "") 
-            this.settings.simsIV = crypto.randomBytes(16).toString('base64');
+        if(this.settings.simsIV == "") {
+            this.settings.simsIV = crypto.randomBytes(16).toString("base64");
+        }
     }
 
     // Gets SIMS from a QuestionData object based off this group's information
     getSims(data: QuestionData) {
         try {
-            const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
+            const ivBuffer = Buffer.from(this.settings.simsIV, "base64");
             return generateSims(data, SERVER_SIMS_KEY, ivBuffer);
         } catch(e) {
             console.log("Error converting QuestionData to SIMS: " + e);
@@ -106,7 +98,7 @@ export class Group {
     // Gets QuestionData from a SIMS object based off this group's information
     getQuestionDataFromSims(sims: string) {
         try {
-            const ivBuffer = Buffer.from(this.settings.simsIV, 'base64');
+            const ivBuffer = Buffer.from(this.settings.simsIV, "base64");
             return getQuestionDataFromSims(sims, SERVER_SIMS_KEY, ivBuffer);
         } catch(e) {
             console.log("Error converting SIMS to QuestionData: " + e);
@@ -130,11 +122,12 @@ export class Group {
             } else if(property == "Phone Number" && member.phoneNumber == "") {
                 member.phoneNumber = answer;
             } else if(property == "Birthday" && member.birthday == null) {
-                member.birthday = new Date() // update this
+                member.birthday = dayjs(answer); // update this
+                if(!member.birthday.isValid()) member.birthday = undefined;
             } else if(property == "Major" && member.major == "") {
                 member.major = answer;
-            } else if(property == "Graduation Year" && member.graduationYear == -1) {
-                member.graduationYear = parseInt(answer);
+            } else if(property == "Graduation Year" && member.graduationYear == 0) {
+                member.graduationYear = parseInt(answer) || 0;
             }
         }
     }
@@ -188,8 +181,8 @@ export class Group {
             spreadsheetId: this.logSheetURI,
             ranges: [
                 RANGE_EVENT_TYPES, // event types
-                RANGE_EVENTS  // events
-                // RANGE_MEMBERS // members
+                RANGE_EVENTS,  // events
+                RANGE_MEMBERS // members
             ],
         });
         
@@ -210,9 +203,11 @@ export class Group {
             const srcType: SourceType = SourceType[row[4] as string];
 
             // Get the question data for the event
-            let questionData = row[6] != undefined ? 
-                this.getQuestionDataFromSims(row[6]) : undefined;
+            let sims = row[6];
+            let questionData = sims != undefined ? 
+                this.getQuestionDataFromSims(sims) : undefined;
             if(questionData == undefined) {
+                sims = undefined;
                 questionData = {
                     questionIds: [],
                     questionIdToPropertyMap: {},
@@ -224,15 +219,36 @@ export class Group {
             const event: Event = {
                 eventName: row[1],
                 semester: "",
-                eventDate: row[2],
+                eventDate: dayjs(row[2]),
                 source: row[3],
                 sourceType: srcType,
                 eventType: this.eventTypes[parseInt(row[5])],
                 attendees: {},
-                sims: row[6],
+                sims: sims,
                 questionData: questionData
             }
             this.events.push(event);
+        });
+
+        // Retrieve members from sheet data
+        const members = res1.data.valueRanges[2];
+        members.values?.forEach((row) => {
+            const member: Member = {
+                firstName: row[1],
+                lastName: row[2],
+                utEID: row[3],
+                email: row[4],
+                phoneNumber: row[5],
+                memberID: this.numMembers,
+                graduationYear: parseInt(row[8]) || 0,
+                birthday: dayjs(row[6]),
+                major: row[7],
+                fallPoints: 0,
+                springPoints: 0,
+                totalPoints: 0
+            }
+            this.members[member.utEID] = member;
+            this.numMembers++;
         });
     }
 
@@ -262,10 +278,10 @@ export class Group {
         // Based on the source type, determine how to collect member info
         let task: Promise<boolean>;
         if ( event.sourceType == SourceType.GoogleSheets ) {
-            task = this.getMemberInfoFromSheets2(event)
+            task = this.getMemberInfoFromSheets(event)
                 .catch(errorMessage);
         } else if ( event.sourceType == SourceType.GoogleForms ) {
-            task = this.getMemberInfoFromForms2(event)
+            task = this.getMemberInfoFromForms(event)
                 .catch(errorMessage);
         }
 
@@ -281,56 +297,7 @@ export class Group {
         console.log(`get event ${event.eventName} from sheets`);
         const res1 = await sheets.spreadsheets.values.get({
             spreadsheetId: event.source,
-            range: "A1:F"
-        });
-
-        res1.data.values.forEach((row, index) => {
-            // Ignore the first row since it's just the title of the columns
-            if( index == 0 ) return;
-
-            // Retrieve member information
-            let member: Member;
-            const utEID = row[3];
-            if(utEID in this.members) {
-                member = this.members[utEID];
-            } else {
-                // Create new member and add them to the group
-                member = {
-                    firstName: row[1],
-                    lastName: row[2],
-                    utEID: utEID,
-                    email: row[4],
-                    phoneNumber: row[5],
-                    memberID: this.numMembers,
-                    graduationYear: 2022,
-                    birthday: new Date(),
-                    major: "Computer Science",
-                    totalPoints: 0
-                };
-                this.numMembers++;
-                this.members[utEID] = member;
-            }
-
-            // Update member if they haven't already been added to this event
-            if(!(utEID in event.attendees)) {
-                event.attendees[utEID] = member;
-                member.totalPoints += event.eventType.points;
-            }
-        });
-
-        return true;
-    }
-
-    // TESTING: USES QUESTION DATA
-    // Gets member information from an event with a source type of Google Sheets
-    // question id = column # of the sheet
-    async getMemberInfoFromSheets2(event: Event) {
-        const sheets = await getSheets();
-
-        console.log(`get event ${event.eventName} from sheets`);
-        const res1 = await sheets.spreadsheets.values.get({
-            spreadsheetId: event.source,
-            range: "A1:ZZ"
+            range: RANGE_GOOGLE_SHEETS_SIGN_IN
         });
 
         // Find which column corresponds to the UT EID
@@ -357,8 +324,10 @@ export class Group {
                     phoneNumber: "",
                     memberID: this.numMembers,
                     graduationYear: 0,
-                    birthday: new Date(),
+                    birthday: dayjs(),
                     major: "",
+                    fallPoints: 0,
+                    springPoints: 0,
                     totalPoints: 0
                 }
     
@@ -381,6 +350,10 @@ export class Group {
                 // Add member to event if they haven't already been added
                 if(!(utEID in event.attendees)) {
                     event.attendees[utEID] = member;
+                    
+                    const semester = getSemesterFromDate(event.eventDate);
+                    if(semester == "Fall") member.fallPoints += event.eventType.points;
+                    if(semester == "Spring") member.springPoints += event.eventType.points;
                     member.totalPoints += event.eventType.points;
                 }
             });
@@ -392,74 +365,6 @@ export class Group {
     // Gets member information from an event with a source type of Google Forms
     // question id = question id from forms
     async getMemberInfoFromForms(event: Event) {
-        const forms = await getForms();
-        console.log(`get event ${event.eventName} from forms`);
-
-        // Obtain information from Google forms
-        const res1 = await forms.forms.get({ // list of questions from forms
-            formId: event.source
-        });
-
-        const res2 = await forms.forms.responses.list({ // list of responses from forms
-            formId: event.source
-        });
-
-        // Map question IDs to questions
-        let idToQuestionMap = {};
-        res1.data.items.forEach((item) => {
-            idToQuestionMap[item.questionItem.question.questionId] = item.title;
-        });
-        
-        // Update membership information from each response
-        res2.data.responses.forEach((response) => {
-            // Go through each of the answers
-            let firstName = "";
-            let lastName = "";
-            let utEID = "";
-            let email = "";
-            let phone = "";
-
-            let member: Member = null;
-            for( let questionId in response.answers ) {
-                const question = idToQuestionMap[questionId];
-                const answerObj = response.answers[questionId];
-                const answer = answerObj.textAnswers.answers[0].value;
-                
-                if( question == "First Name" ) { firstName = answer; }
-                else if( question == "Last Name" ) { lastName = answer; }
-                else if( question == "UT EID" ) { 
-                    utEID = answer; 
-                    member = this.members[utEID]; 
-                }
-                else if( question == "Email" ) { email = answer; }
-                else if( question == "Phone Number" ) { phone = answer; }
-            }
-
-            if( member == null && utEID != "" ) {
-                member = {
-                    firstName: firstName,
-                    lastName: lastName,
-                    utEID: utEID,
-                    email: email,
-                    phoneNumber: phone,
-                    memberID: this.numMembers,
-                    graduationYear: 0,
-                    birthday: new Date(),
-                    major: "Computer Science",
-                    totalPoints: 0
-                }
-                this.members[utEID] = member;
-            }
-            member.totalPoints += event.eventType.points;
-            event.attendees[utEID] = member;
-        });
-
-        return true;
-    }
-
-    // Gets member information from an event with a source type of Google Forms
-    // question id = question id from forms
-    async getMemberInfoFromForms2(event: Event) {
         const forms = await getForms();
         console.log(`get event ${event.eventName} from forms`);
 
@@ -490,8 +395,10 @@ export class Group {
                     phoneNumber: "",
                     memberID: this.numMembers,
                     graduationYear: 0,
-                    birthday: new Date(),
+                    birthday: dayjs(),
                     major: "",
+                    fallPoints: 0,
+                    springPoints: 0,
                     totalPoints: 0
                 }
     
@@ -519,6 +426,10 @@ export class Group {
                 // Add member to event if they haven't already been added
                 if(!(utEID in event.attendees)) {
                     event.attendees[utEID] = member;
+
+                    const semester = getSemesterFromDate(event.eventDate);
+                    if(semester == "Fall") member.fallPoints += event.eventType.points;
+                    if(semester == "Spring") member.springPoints += event.eventType.points;
                     member.totalPoints += event.eventType.points;
                 }
             });

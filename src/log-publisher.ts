@@ -1,19 +1,28 @@
 import { getForms, getSheets } from "./google-client.js";
 import { Group } from "./group.js";
-import { Event, SourceType } from "./group-interfaces.js";
+import { Event, MemberProperty, QuestionPropertyMatch, SourceType } from "./group-interfaces.js";
+import dayjs, { Dayjs } from "dayjs";
 
-// RANGE CONSTANTS //
 export const RANGE_EVENT_TYPES = "Event Log!A3:C";
 export const RANGE_EVENTS = "Event Log!E3:K";
 export const RANGE_MEMBERS = "Members!A4:L";
 export const RANGE_EVENTS_ATTENDED = "Members!M2:ZZ";
+export const RANGE_OUTPUT = "Output!A2:B";
 
 export const RANGE_UPDATE_EVENT_TYPE_OP = "Event Log!N3:P5";
 export const RANGE_DELETE_EVENT_TYPE_OP = "Event Log!N9:P10";
 export const RANGE_UPDATE_EVENT_OP = "Event Log!N15:P20";
-export const RANGE_DELETE_EVENT_OP = "Event Log!N27:P27";
-export const RANGE_UPDATE_QUESTION_DATA_OP_1 = "Event Log!N32:P32";
-export const RANGE_UPDATE_QUESTION_DATA_OP_2 = "Event Log!M39:P";
+export const RANGE_DELETE_EVENT_OP = "Event Log!N28:P28";
+export const RANGE_UPDATE_QUESTION_DATA_OP_1 = "Event Log!N33:P33";
+export const RANGE_UPDATE_QUESTION_DATA_OP_2 = "Event Log!M40:P";
+
+export const RANGE_GOOGLE_SHEETS_SIGN_IN = "A1:ZZ";
+export const RANGE_GOOGLE_SHEETS_SIGN_IN_TITLES = "A1:ZZ1";
+
+export const DATE_FORMAT = "MM/DD/YYYY";
+export const SHEET_ID_EVENT_LOG = 0;
+export const SHEET_ID_MEMBERS = 1851863886;
+export const SHEET_ID_OUTPUT = 508001939;
 
 // Updates the event & membership information in the group's log
 export async function updateLogsForGroup(group: Group, includeEventTypes: boolean, 
@@ -28,6 +37,7 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
     rangesToClear.push(RANGE_EVENTS_ATTENDED);
 
     // Clear the information on the logs
+    group.logger.log("UPDATE LOGS: Clearing logs...");
     const res1 = await sheets.spreadsheets.values.batchClear({
         spreadsheetId: group.logSheetURI,
         requestBody: {
@@ -65,10 +75,11 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
             eventsValues.push([
                 index,
                 event.eventName,
-                event.eventDate.toString(),
+                event.eventDate.format(DATE_FORMAT),
                 event.source,
                 sourceType,
-                event.eventType.id
+                event.eventType.id,
+                event.sims
             ]);
         });
 
@@ -98,11 +109,11 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
             member.utEID,
             member.email,
             member.phoneNumber,
-            member.birthday.toString(),
+            member.birthday.format(DATE_FORMAT),
             member.major,
             member.graduationYear,
-            member.totalPoints,
-            member.totalPoints,
+            member.fallPoints,
+            member.springPoints,
             member.totalPoints
         ]);
 
@@ -128,6 +139,7 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
     });
 
     // Update the information on the logs with the new values
+    group.logger.log("UPDATE LOGS: Updating logs...")
     const res2 = await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: group.logSheetURI,
         requestBody: {
@@ -136,6 +148,27 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
         }
     });
 
+    // Add formatting
+    group.logger.log("UPDATE LOGS: Adding formatting...");
+    const res3 = await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: group.logSheetURI,
+        requestBody: {
+            requests: [
+                {
+                    "autoResizeDimensions": {
+                        "dimensions": {
+                            "sheetId": SHEET_ID_MEMBERS,
+                            "dimension": "COLUMNS",
+                            "startIndex": 12,
+                            "endIndex": 12 + group.events.length
+                        }
+                    }
+                }
+            ]
+        }
+    });
+
+    group.logger.send();
     return true;
 }
 
@@ -146,31 +179,33 @@ export async function loadQuestionDataFromGoogleSheets(group: Group, eventID: nu
     // Get the first row of the spreadsheet -- those are the "questions" in this case
     const res1 = await sheets.spreadsheets.values.get({
         spreadsheetId: event.source,
-        range: "A1:ZZ1"
+        range: RANGE_GOOGLE_SHEETS_SIGN_IN_TITLES
     });
 
     // Create the 2D array for the question data to update the logs with
-    const questionDataValues: any[][] = [];
+    const matchings : QuestionPropertyMatch[] = [];
     res1.data.values[0].forEach((question, index) => {
         const questionId = `${index}`; // for clarity
-        const currentRow = [];
-
-        // Add the question, questionId, and property to the current row
-        currentRow.push(question, "", questionId);
+        let property : MemberProperty;
 
         // Check if the question ID is in the question data for the current event
         const questionIdCheck = event.questionData.questionIds
             .findIndex(id => id == questionId);
         if(questionIdCheck != -1) {
-            currentRow.push(event.questionData.questionIdToPropertyMap[questionId]);
+            property = event.questionData.questionIdToPropertyMap[questionId];
         } else {
-            currentRow.push(""); // empty cell
+            property = "";
         }
 
-        questionDataValues.push(currentRow);
+        // Add the new matching to the list of matchings
+        matchings.push({
+            question: question,
+            questionId: questionId,
+            property: property
+        });
     });
 
-    return await finishLoadQuestionData(group, eventID, questionDataValues);
+    return finishLoadQuestionData(group, eventID, matchings);
 }
 
 // Loads question data onto the log sheet for the group from Google Sheets
@@ -183,35 +218,37 @@ export async function loadQuestionDataFromGoogleForms(group: Group, eventID: num
     });
 
     // Create the 2D array for the question data to update the logs with
-    const questionDataValues: any[][] = [];
+    const matchings : QuestionPropertyMatch[] = [];
     res1.data.items.forEach(item => {
         const question = item.title;
         const questionId = item.questionItem.question.questionId;
-        const currentRow = [];
-
-        // Add the question, questionId, and property to the current row
-        currentRow.push(question, "", questionId);
+        let property : MemberProperty;
 
         // Check if the question ID is in the question data for the current event
         const questionIdCheck = event.questionData.questionIds
             .findIndex(id => id == questionId);
         if(questionIdCheck != -1) {
-            currentRow.push(event.questionData.questionIdToPropertyMap[questionId]);
+            property = event.questionData.questionIdToPropertyMap[questionId];
         } else {
-            currentRow.push(""); // empty cell
+            property = "";
         }
 
-        questionDataValues.push(currentRow);
+        // Add the new matching to the list of matchings
+        matchings.push({
+            question: question,
+            questionId: questionId,
+            property: property
+        });
     });
 
-    return await finishLoadQuestionData(group, eventID, questionDataValues);
+    return finishLoadQuestionData(group, eventID, matchings);
 }
 
-async function finishLoadQuestionData(group: Group, eventID: number, values: any[][]) {
+async function finishLoadQuestionData(group: Group, eventID: number, matchings: QuestionPropertyMatch[]) {
     const sheets = await getSheets();
 
     // Clear the data in the logs with the previous input for question data
-    const res2 = await sheets.spreadsheets.values.batchClear({
+    const res1 = await sheets.spreadsheets.values.batchClear({
         spreadsheetId: group.logSheetURI,
         requestBody: {
             ranges: [
@@ -222,7 +259,31 @@ async function finishLoadQuestionData(group: Group, eventID: number, values: any
     });
 
     // Update the logs with the question data
-    const res3 = await sheets.spreadsheets.values.batchUpdate({
+    const values = [];
+    const mergeRequests = [];
+    matchings.forEach((match, index) => {
+        const currentRow = [];
+
+        // Add the question, questionId, and property to the current row
+        currentRow.push(match.question, "", match.questionId, match.property);
+        values.push(currentRow);
+
+        // Add a request to merge cells in column M and N for this row
+        mergeRequests.push({
+            mergeCells: {
+                range: {
+                    sheetId: 0,
+                    startColumnIndex: 12,
+                    endColumnIndex: 14,
+                    startRowIndex: 39 + index,
+                    endRowIndex: 40 + index
+                }
+            }
+        });
+    })
+
+    // Update the cells
+    const res2 = await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: group.logSheetURI,
         requestBody: {
             valueInputOption: "USER_ENTERED",
@@ -239,5 +300,140 @@ async function finishLoadQuestionData(group: Group, eventID: number, values: any
         }
     });
 
+    // Add formatting
+    const res3 = await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: group.logSheetURI,
+        requestBody: {
+            requests: mergeRequests
+        }
+    });
+
     return true;
+}
+
+const GROUP_OUTPUT_CAPACITY = "";
+
+// Logs information to the output for a group
+export class GroupOutput {
+    sheetURI: string;
+    capacity: number;     // max # of messages allowed in the log
+    retainPeriod: number; // # of days each message in the log is retained
+    toSend: string[];
+    toSendTimestamps: Dayjs[];
+    printOnLog: boolean;
+
+    constructor(group: Group) {
+        this.sheetURI = group.logSheetURI;
+
+        this.capacity = 200;
+        this.retainPeriod = 7;
+        this.toSend = [];
+        this.toSendTimestamps = [];
+
+        this.printOnLog = false;
+    }
+
+    // Adds a message to the list of messages to be sent to the log
+    log(message: string) {
+        if(this.printOnLog) console.log(message);
+        this.toSend.push(message);
+        this.toSendTimestamps.push(dayjs());
+    }
+
+    // Sends all messages currently queued up to the log
+    async send() {
+        if(this.toSend.length == 0) return true; // nothing to send
+        const sheets = await getSheets();
+
+        // Generate the list of values to send
+        const values = [];
+        this.toSend.forEach((msg, index) => {
+            values.push([this.toSendTimestamps[index].format(), msg]);
+        });
+
+        // Append the values to the output sheet
+        const res1 = sheets.spreadsheets.values.append({
+            spreadsheetId: this.sheetURI,
+            range: RANGE_OUTPUT,
+            valueInputOption: "USER_ENTERED",
+            requestBody: {
+                values: values
+            }
+        });
+
+        // Empty out the data to send
+        this.toSend = [];
+        this.toSendTimestamps = [];
+
+        return true;
+    }
+
+    // Clears the first amount messages from the log
+    async clear(amount: number) {
+        const sheets = await getSheets();
+
+        const res3 = await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: this.sheetURI,
+            requestBody: {
+                requests: [
+                    {
+                        "deleteDimension": {
+                            "range": {
+                                "sheetId": SHEET_ID_OUTPUT,
+                                "dimension": "ROWS",
+                                "startIndex": 1,
+                                "endIndex": 1 + amount
+                            }
+                        }
+                    }
+                ]
+            }
+        });
+
+        return true;
+    }
+
+    // Ensures that the number of messages in the log don't exceed the capacity
+    async maintainCapacity() {
+        const sheets = await getSheets();
+
+        // Check to see how many messages are currently in the log
+        const res1 = await sheets.spreadsheets.values.get({
+            spreadsheetId: this.sheetURI,
+            range: RANGE_OUTPUT
+        });
+        let numMessages = res1.data.values.length;
+
+        // If it's above capacity (capacity + X messages), delete the first X messages
+        if(numMessages > this.capacity) {
+            return this.clear(numMessages - this.capacity);
+        }
+
+        return true;
+    }
+
+    // Deletes messages that are over this.retainPeriod days old
+    async deleteOldMessages() {
+        const sheets = await getSheets();
+
+        // Obtain messages from the sheet
+        const res1 = await sheets.spreadsheets.values.get({
+            spreadsheetId: this.sheetURI,
+            range: RANGE_OUTPUT
+        });
+
+        // Iterate through the rows until there's a message to NOT delete
+        const now = dayjs();
+        let numToRemove = 0;
+        res1.data.values.some((row, index) => {
+            const date = dayjs(row[1]);
+            if(!date.isValid() || date.diff(now, "days") > this.retainPeriod) { 
+                numToRemove++;
+                return false;
+            }
+            return true;
+        });
+
+        return this.clear(numToRemove);
+    }
 }
