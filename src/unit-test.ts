@@ -10,11 +10,13 @@ import crypto from "crypto";
 
 async function testing() {
     
+    // simsTest();
+
     // await initGroups();
     // await refreshAllGroups();
 
-    // simsTest();
     const exampleGroup = await groupTest(false);
+    
     // await initTestGroups([exampleGroup]);
     // await getMemberInfoFromSheetsTest(exampleGroup);
     // await getMemberInfoFromFormsTest(exampleGroup);
@@ -52,21 +54,19 @@ function simsTest() {
     // Verify if the decoded buffer matches the original random buffer
     console.log("Buffers match:", iv.equals(decodedBuffer));
 
-    const exampleMatching: QuestionPropertyMatch[] = [
+    const exampleMatches: QuestionPropertyMatch[] = [
         {
-            "question": "What is your first name?",
             "questionId": "0",
             "property": "First Name"
         },
         {
-            "question": "What is your last name?",
             "questionId": "1",
             "property": "Last Name"
         }
     ];
 
-    // Convert sample question property matching to a QuestionData object
-    const data = getQuestionData(exampleMatching);
+    // Convert sample question property matches to a QuestionData object
+    const data = getQuestionData(exampleMatches);
     console.log(data);
 
     // Generate a SIMS string using the generated question data
@@ -83,11 +83,13 @@ async function groupTest(refresh: boolean) {
     const settings: GroupSettings = {
         id: 0,
         name: "ABCS",
-        logSheetURI: EXAMPLE_LOG_SHEET_ID,
+        logSheetUri: EXAMPLE_LOG_SHEET_ID,
         version: "1.0.0",
         simsIV: "0CcixtBxH1VQ1z4DtKQsdw==",
-        metadata: {}
+        outputCapacity: 200,
+        outputRetentionPeriod: 7
     }
+    
     let exampleGroup = new Group(settings);
     await exampleGroup.reset();
     if(refresh) updateLogsForGroup(exampleGroup, true, true);
@@ -101,34 +103,29 @@ async function initTestGroups(groups: Group[]) {
 
 // Test obtaining member information from Google Sheets
 async function getMemberInfoFromSheetsTest(group: Group) {
-    const exampleMatching: QuestionPropertyMatch[] = [
+    const exampleMatches: QuestionPropertyMatch[] = [
         {
-            "question": "What is your first name?",
             "questionId": "1",
             "property": "First Name"
         },
         {
-            "question": "What is your last name?",
             "questionId": "2",
             "property": "Last Name"
         },
         {
-            "question": "What is your UT EID?",
             "questionId": "3",
             "property": "UT EID"
         },
         {
-            "question": "What is your Email?",
             "questionId": "4",
             "property": "Email"
         },
         {
-            "question": "What is your Phone Number?",
             "questionId": "5",
             "property": "Phone Number"
         }
     ];
-    const data = getQuestionData(exampleMatching);
+    const data = getQuestionData(exampleMatches);
     const sims = group.getSims(data);
     console.log(data);
     console.log(sims);
@@ -151,34 +148,29 @@ async function getMemberInfoFromSheetsTest(group: Group) {
 
 // Test obtaining member information from Google Forms
 async function getMemberInfoFromFormsTest(group: Group) {
-    const exampleMatching: QuestionPropertyMatch[] = [
+    const exampleMatches: QuestionPropertyMatch[] = [
         {
-            "question": "What is your first name?",
             "questionId": "65809e76",
             "property": "First Name"
         },
         {
-            "question": "What is your last name?",
             "questionId": "1da58d25",
             "property": "Last Name"
         },
         {
-            "question": "What is your UT EID?",
             "questionId": "6cf3dd44",
             "property": "UT EID"
         },
         {
-            "question": "What is your Email?",
             "questionId": "540150ef",
             "property": "Email"
         },
         {
-            "question": "What is your Phone Number?",
             "questionId": "3becb400",
             "property": "Phone Number"
         }
     ];
-    const data = getQuestionData(exampleMatching);
+    const data = getQuestionData(exampleMatches);
     const sims = group.getSims(data);
     console.log(data);
     console.log(sims);
@@ -204,10 +196,10 @@ async function updateEventTest(group: Group) {
     console.log("OPERATIONS TEST");
 
     const builder = new UpdateEventBuilder(group);
-    builder.eventID = -1;
+    builder.eventId = -1;
     builder.eventTitle = "Hello world";
     builder.rawEventDate = "2/2/2024";
-    builder.rawEventType = "Socials";
+    builder.eventTypeId = 0;
     builder.source = "1gF6MY54dj9Xm4CfVQR_18oRENUsFSh0Tolrm4sa4Z1w";
     builder.sourceType = "GoogleSheets";
 
@@ -237,7 +229,7 @@ async function updateEventTypeTest(group: Group) {
 
     const builder = new UpdateEventTypeBuilder(group);
     builder.typeName = "Misc";
-    builder.typeID = -1;
+    builder.typeId = -1;
     builder.points = 75;
 
     console.log("GROUP BEFORE OPERATION:");
@@ -265,8 +257,8 @@ async function deleteEventTypeTest(group: Group) {
     console.log("DELETE EVENT TYPE OPERATION TEST");
 
     const builder = new DeleteEventTypeBuilder(group);
-    builder.typeIDtoRemove = 0;
-    builder.typeIDtoReplace = 1;
+    builder.typeIdtoRemove = 0;
+    builder.typeIdtoReplace = 1;
 
     console.log("GROUP BEFORE OPERATION:");
     console.log(group);
@@ -293,7 +285,7 @@ async function deleteEventTest(group: Group) {
     console.log("DELETE EVENT OPERATION TEST");
 
     const builder = new DeleteEventBuilder(group);
-    builder.eventID = 0;
+    builder.eventId = 0;
 
     console.log("GROUP BEFORE OPERATION:");
     console.log(group);
@@ -317,47 +309,39 @@ async function deleteEventFromLogTest() {
 
 // Test the updateQuestionData group operation
 async function updateQuestionDataTest(group: Group) {
-    const exampleMatching1: QuestionPropertyMatch[] = [
+    const exampleMatches1: QuestionPropertyMatch[] = [
         {
-            "question": "What is your first name?",
             "questionId": "1",
             "property": "First Name"
         },
         {
-            "question": "What is your last name?",
             "questionId": "2",
             "property": "Last Name"
         },
         {
-            "question": "What is your Email?",
             "questionId": "4",
             "property": "Email"
         },
         {
-            "question": "What is your Phone Number?",
             "questionId": "5",
             "property": "Phone Number"
         }
     ];
 
-    const exampleMatching2: QuestionPropertyMatch[] = [
+    const exampleMatches2: QuestionPropertyMatch[] = [
         {
-            "question": "What is your first name?",
             "questionId": "1",
             "property": "First Name"
         },
         {
-            "question": "What is your last name?",
             "questionId": "2",
             "property": "Last Name"
         },
         {
-            "question": "What is your UT EID?",
             "questionId": "3",
             "property": "UT EID"
         },
         {
-            "question": "What is your Phone Number?",
             "questionId": "5",
             "property": "Phone Number"
         }
@@ -366,8 +350,8 @@ async function updateQuestionDataTest(group: Group) {
     console.log("UPDATE QUESTION DATA OPERATION TEST");
 
     const builder = new UpdateQuestionDataBuilder(group);
-    builder.eventID = 0;
-    builder.questionToPropertyMatches = exampleMatching1;
+    builder.eventId = 0;
+    builder.questionToPropertyMatches = exampleMatches1;
 
     console.log("GROUP BEFORE OPERATION:");
     console.log(group);
@@ -413,7 +397,6 @@ async function updateQuestionDataFromLogsTest() {
 }
 
 async function groupLoggerTest(group: Group) {
-    group.logger.printOnLog = true;
     group.logger.log("GROUP LOGGER TEST");
     group.logger.log("Hello");
     group.logger.log("World");

@@ -6,3 +6,4 @@ config/*
 !config/templates
 
 src/secrets.ts
+src/quick-test.ts

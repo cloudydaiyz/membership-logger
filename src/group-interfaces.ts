@@ -8,10 +8,10 @@ export interface GenericMap<K> {
 }
 
 export interface Member {
-    memberID: number,
+    memberId: number,
     firstName: string,
     lastName: string,
-    utEID: string,
+    utEid: string,
     email: string,
     phoneNumber: string,
     birthday: Dayjs,
@@ -37,7 +37,6 @@ export enum SourceType {
 }
 
 export interface QuestionPropertyMatch {
-    question: string;
     questionId: string;
     property: MemberProperty;
 }
@@ -45,8 +44,7 @@ export interface QuestionPropertyMatch {
 // One question to one ID and vice versa
 export interface QuestionData {
     questionIds: string[], // list of all question Ids
-    questionIdToPropertyMap: GenericMap<MemberProperty>, // maps question IDs to member properties
-    questionIdToQuestionMap: GenericMap<string> // maps questions to corresponding question ID
+    questionIdToPropertyMap: GenericMap<MemberProperty> // maps question IDs to member properties
 }
 
 export interface Event {
@@ -64,10 +62,11 @@ export interface Event {
 export interface GroupSettings {
     id: number,
     name: string,
-    logSheetURI: string,
+    logSheetUri: string,
     version: string,
     simsIV: string,
-    metadata: GenericMap<string>
+    outputCapacity: number,
+    outputRetentionPeriod: number
 }
 
 // Maps groups to a corresponding ID

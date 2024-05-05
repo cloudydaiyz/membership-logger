@@ -69,7 +69,6 @@ groupRouter.post('/:id/updateEvent', (req, res) => {
         updateEventFromLog(groupId).then(val => res.send(val));
         return;
     }
-    console.log(req.body);
 
     // Account for optional parameters
     if(typeof req.body.eventId == "undefined") req.body.eventId = -1;
@@ -80,10 +79,10 @@ groupRouter.post('/:id/updateEvent', (req, res) => {
     if(typeof req.body.eventDate != "string") { res.send(false); return; }
     if(typeof req.body.source != "string") { res.send(false); return; }
     if(typeof req.body.sourceType != "string") { res.send(false); return; }
-    if(typeof req.body.eventType != "string") { res.send(false); return; }
+    if(typeof req.body.eventTypeId != "number") { res.send(false); return; }
 
     updateEvent(groupId, req.body.eventId, req.body.eventTitle, req.body.eventDate,
-        req.body.source, req.body.sourceType, req.body.eventType)
+        req.body.source, req.body.sourceType, req.body.eventTypeId)
         .then(val => res.send(val));
 });
 
@@ -125,21 +124,19 @@ groupRouter.post('/:id/updateQuestionData', (req, res) => {
 
     // Validate request parameters
     if(typeof req.body.eventId != "number") { res.send(false); return; }
-    if(typeof req.body.matchings != "object" || !Array.isArray(req.body.matchings)) { res.send(false); return; }
+    if(typeof req.body.matches != "object" || !Array.isArray(req.body.matches)) { res.send(false); return; }
 
-    const matchings : QuestionPropertyMatch[] = [];
-    for(const match of req.body.matchings) {
+    const matches : QuestionPropertyMatch[] = [];
+    for(const match of req.body.matches) {
         if(typeof match != "object") { res.send(false); return; }
-        if(typeof match.question != "string") { res.send(false); return; }
         if(typeof match.questionId != "string") { res.send(false); return; }
         if(typeof match.property != "string" || !isMemberProperty(match.property)) { res.send(false); return; }
 
-        matchings.push({
-            question: match.question,
+        matches.push({
             questionId: match.questionId,
             property: match.property
         });
     }
 
-    updateQuestionData(groupId, req.body.eventId, matchings).then(val => res.send(val));
+    updateQuestionData(groupId, req.body.eventId, matches).then(val => res.send(val));
 });

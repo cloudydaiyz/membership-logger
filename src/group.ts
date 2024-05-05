@@ -32,7 +32,7 @@ export function isMemberProperty(str: string): str is MemberProperty {
             str === "Major" || str === "Graduation Year");
 }
 
-// Extracts the matchings using a SIMS
+// Extracts the question data using a SIMS
 // The same SIMS should return the same map
 export function getQuestionDataFromSims(sims: string, key: string, iv: Buffer) {
     let decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
@@ -53,9 +53,8 @@ export function generateSims(data: QuestionData, key: string, iv: Buffer) {
 
 /* GROUP CLASS DEFINITION */
 export class Group {
-    // Group Data
     name: string;
-    logSheetURI: string;
+    logSheetUri: string;
     settings: GroupSettings;
     logger: GroupOutput;
 
@@ -72,11 +71,10 @@ export class Group {
         this.events = [];
         this.members = {};
         this.numMembers = 0;
-        this.logSheetURI = settings.logSheetURI;
+        this.logSheetUri = settings.logSheetUri;
         this.settings = settings;
 
         this.logger = new GroupOutput(this);
-        this.logger.printOnLog = true;
 
         // Update settings
         if(this.settings.simsIV == "") {
@@ -90,7 +88,7 @@ export class Group {
             const ivBuffer = Buffer.from(this.settings.simsIV, "base64");
             return generateSims(data, SERVER_SIMS_KEY, ivBuffer);
         } catch(e) {
-            console.log("Error converting QuestionData to SIMS: " + e);
+            this.logger.print("Error converting QuestionData to SIMS: " + e);
         }
         return undefined;
     }
@@ -101,7 +99,7 @@ export class Group {
             const ivBuffer = Buffer.from(this.settings.simsIV, "base64");
             return getQuestionDataFromSims(sims, SERVER_SIMS_KEY, ivBuffer);
         } catch(e) {
-            console.log("Error converting SIMS to QuestionData: " + e);
+            this.logger.print("Error converting SIMS to QuestionData: " + e);
         }
         return undefined;
     }
@@ -115,8 +113,8 @@ export class Group {
                 member.firstName = answer;
             } else if(property == "Last Name" && member.lastName == "") {
                 member.lastName = answer;
-            } else if(property == "UT EID" && member.utEID == "")  {
-                member.utEID = answer;
+            } else if(property == "UT EID" && member.utEid == "")  {
+                member.utEid = answer;
             } else if(property == "Email" && member.email == "") {
                 member.email = answer;
             } else if(property == "Phone Number" && member.phoneNumber == "") {
@@ -158,27 +156,13 @@ export class Group {
         this.numMembers = 0;
     }
 
-    // Obtains the event data from the existing events in the group
-    async getEventData() {
-        // Go through the list of events, and update members accordingly
-        const asyncTasks = []; // keep track of all async tasks
-        this.events.forEach((event) => {
-            const task = this.getMemberInfoFromEvent(event);
-            asyncTasks.push(task);
-        });
-
-        // Wait for all async tasks to complete before returning
-        await Promise.all(asyncTasks);
-        return true;
-    }
-
     // Adds information from the membership log to this group
     async getLogInfo() {
         const sheets = await getSheets();
 
         // Obtain metadata, list of event types, list of events, and existing members
         const res1 = await sheets.spreadsheets.values.batchGet({
-            spreadsheetId: this.logSheetURI,
+            spreadsheetId: this.logSheetUri,
             ranges: [
                 RANGE_EVENT_TYPES, // event types
                 RANGE_EVENTS,  // events
@@ -207,11 +191,10 @@ export class Group {
             let questionData = sims != undefined ? 
                 this.getQuestionDataFromSims(sims) : undefined;
             if(questionData == undefined) {
-                sims = undefined;
+                sims = "";
                 questionData = {
                     questionIds: [],
-                    questionIdToPropertyMap: {},
-                    questionIdToQuestionMap: {}
+                    questionIdToPropertyMap: {}
                 };
             }
 
@@ -236,10 +219,10 @@ export class Group {
             const member: Member = {
                 firstName: row[1],
                 lastName: row[2],
-                utEID: row[3],
+                utEid: row[3],
                 email: row[4],
                 phoneNumber: row[5],
-                memberID: this.numMembers,
+                memberId: this.numMembers,
                 graduationYear: parseInt(row[8]) || 0,
                 birthday: dayjs(row[6]),
                 major: row[7],
@@ -247,7 +230,7 @@ export class Group {
                 springPoints: 0,
                 totalPoints: 0
             }
-            this.members[member.utEID] = member;
+            this.members[member.utEid] = member;
             this.numMembers++;
         });
     }
@@ -262,15 +245,31 @@ export class Group {
         return success;
     }
 
+    // Obtains the event data from the existing events in the group
+    async getEventData() {
+        const asyncTasks = []; // keep track of all async tasks
+
+        // Go through the list of events, and update members accordingly
+        this.events.forEach((event) => {
+            const task = this.getMemberInfoFromEvent(event);
+            asyncTasks.push(task);
+        });
+
+        // Wait for all async tasks to complete before returning
+        await Promise.all(asyncTasks);
+        return true;
+    }
+
     /* GET MEMBER INFO METHODS */
     // Each method here must update membership based off of event information and 
     // preexisting question data
 
     // Gets member information for an event based on its source type
     async getMemberInfoFromEvent(event: Event) {
+        this.logger.print(`Obtaining member info from event ${event.eventName}`);
         const errorMessage = (error) => {
-            console.log(`Error occurred while obtaining event info for ${event.sourceType}: ${error}`);
-            console.log(`Event: ${event.eventName}; Type: ${event.sourceType}; `
+            this.logger.error(`Error occurred while obtaining event info: ${error}`);
+            this.logger.error(`Event: ${event.eventName}; Type: ${event.sourceType}; `
                 + `ID: ${event.source}`);
             return false;
         };
@@ -292,25 +291,25 @@ export class Group {
     // Gets member information from an event with a source type of Google Sheets
     // question id = column # of the sheet
     async getMemberInfoFromSheets(event: Event) {
+        this.logger.print(`Getting event ${event.eventName} from sheets`);
         const sheets = await getSheets();
 
-        console.log(`get event ${event.eventName} from sheets`);
         const res1 = await sheets.spreadsheets.values.get({
             spreadsheetId: event.source,
             range: RANGE_GOOGLE_SHEETS_SIGN_IN
         });
 
         // Find which column corresponds to the UT EID
-        let utEIDColumn = -1;
+        let utEidColumn = -1;
         for(const questionId in event.questionData.questionIdToPropertyMap) {
             const property = event.questionData.questionIdToPropertyMap[questionId];
             if(property == "UT EID") {
-                utEIDColumn = parseInt(questionId);
+                utEidColumn = parseInt(questionId);
             }
         }
 
         // If there's a UT EID column, update members based on each row in the spreadsheet
-        if(utEIDColumn != -1) {
+        if(utEidColumn != -1) {
             res1.data.values.forEach((row, index) => {
                 // Ignore the first row since it's just the title of the columns
                 if( index == 0 ) return;
@@ -319,12 +318,12 @@ export class Group {
                 let member: Member = {
                     firstName: "",
                     lastName: "",
-                    utEID: "",
+                    utEid: "",
                     email: "",
                     phoneNumber: "",
-                    memberID: this.numMembers,
+                    memberId: this.numMembers,
                     graduationYear: 0,
-                    birthday: dayjs(),
+                    birthday: null,
                     major: "",
                     fallPoints: 0,
                     springPoints: 0,
@@ -332,7 +331,7 @@ export class Group {
                 }
     
                 // Check if it's a pre-existing member based on the UT EID response
-                const utEID = row[utEIDColumn];
+                const utEID = row[utEidColumn];
                 if(utEID == "") {
                     return; // Discard if there's no UT EID provided
                 } else if(utEID in this.members) {
@@ -365,8 +364,8 @@ export class Group {
     // Gets member information from an event with a source type of Google Forms
     // question id = question id from forms
     async getMemberInfoFromForms(event: Event) {
+        this.logger.print(`Getting event ${event.eventName} from forms`);
         const forms = await getForms();
-        console.log(`get event ${event.eventName} from forms`);
 
         // Get the list of responses from Google Forms
         const res1 = await forms.forms.responses.list({
@@ -374,41 +373,38 @@ export class Group {
         });
 
         // Find which question ID corresponds to the UT EID
-        let utEIDQuestionID = "";
+        let utEidQuestionID = "";
         for(const questionId in event.questionData.questionIdToPropertyMap) {
             const property = event.questionData.questionIdToPropertyMap[questionId];
             if(property == "UT EID") {
-                utEIDQuestionID = questionId;
+                utEidQuestionID = questionId;
             }
         }
 
         // If there's a UT EID question ID, go through each of the answers and 
         // update member info
-        if(utEIDQuestionID != "") {
+        if(utEidQuestionID != "") {
             res1.data.responses.forEach((response) => {
-                // Initialize the member
                 let member: Member = {
                     firstName: "",
                     lastName: "",
-                    utEID: "",
+                    utEid: "",
                     email: "",
                     phoneNumber: "",
-                    memberID: this.numMembers,
+                    memberId: this.numMembers,
                     graduationYear: 0,
-                    birthday: dayjs(),
+                    birthday: null,
                     major: "",
                     fallPoints: 0,
                     springPoints: 0,
                     totalPoints: 0
                 }
     
-                // Check if this response has a UT EID
-                if(!(utEIDQuestionID in response.answers)) {
-                    return; // Discard if there's no UT EID provided
-                }
+                // Check if this response has a UT EID, and discard if not
+                if(!(utEidQuestionID in response.answers)) return;
                 
                 // Check if it's a pre-existing member based on the UT EID response
-                const utEID = response.answers[utEIDQuestionID].textAnswers.answers[0].value;
+                const utEID = response.answers[utEidQuestionID].textAnswers.answers[0].value;
                 if(utEID in this.members) {
                     member = this.members[utEID];
                 } else {

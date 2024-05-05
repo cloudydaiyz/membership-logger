@@ -4,9 +4,10 @@
   "description": "TypeScript application that handles updating membership logs",
   "main": "dst/app.js",
   "scripts": {
-    "test": "tsc && node dst/test.js",
     "build": "tsc",
-    "start": "tsc && node dst/app.js"
+    "start": "tsc && node dst/app.js",
+    "test": "tsc && node dst/unit-test.js",
+    "quick-test": "tsc && node dst/quick-test.js"
   },
   "repository": {
     "type": "git",
@@ -24,6 +25,7 @@
     "@types/express": "^4.17.21",
     "crypto": "^1.0.1",
     "dayjs": "^1.11.11",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "googleapis": "^105.0.0"
   },

@@ -2,8 +2,10 @@
     {
         "id": 0,
         "name": "group1's name",
-        "logSheetURI": "link to group 1's membership log",
+        "logSheetUri": "link to group 1's membership log",
         "version": "1.0.0",
-        "simsIV": ""
+        "simsIV": "",
+        "outputCapacity": 200,
+        "outputRetentionPeriod": 7
     }
 ]

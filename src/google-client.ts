@@ -15,36 +15,30 @@ let auth: GoogleAuth;
 let sheets: sheets_v4.Sheets;
 let forms: forms_v1.Forms;
 
-/**
- * Load or request or authorization to call APIs.
- */
-export async function authorize() {
-    if(auth === undefined) {
-        const raw_credentials = await fs.readFile(SERVICE_KEY_PATH);
-        const credentials = JSON.parse(String(raw_credentials));
-        auth = new google.auth.GoogleAuth({
-            credentials: credentials,
-            scopes: SCOPES
-        });
-    }
+// Load or request or authorization to call APIs from Google
+export async function authorizeGoogle() {
+    const raw_credentials = await fs.readFile(SERVICE_KEY_PATH);
+    const credentials = JSON.parse(String(raw_credentials));
+    auth = new google.auth.GoogleAuth({
+        credentials: credentials,
+        scopes: SCOPES
+    });
 }
 
 // Obtains the Google Sheets client
+// precondition: authorizeGoogle() has been called
 export async function getSheets(): Promise<sheets_v4.Sheets> {
-    await authorize();
     if(sheets === undefined) {
         sheets = google.sheets({version: 'v4', auth});
     }
     return sheets;
 }
 
-// Obtains the Google Forms client
+// Obtains the Google Forms client 
+// precondition: authorizeGoogle() has been called
 export async function getForms(): Promise<forms_v1.Forms> {
-    await authorize();
     if(forms === undefined) {
         forms = google.forms({version: 'v1', auth});
     }
     return forms;
 }
-
-authorize();
