@@ -9,12 +9,14 @@ export const RANGE_MEMBERS = "Members!A4:L";
 export const RANGE_EVENTS_ATTENDED = "Members!M2:ZZ";
 export const RANGE_OUTPUT = "Output!A2:B";
 
-export const RANGE_UPDATE_EVENT_TYPE_OP = "Event Log!N3:P5";
-export const RANGE_DELETE_EVENT_TYPE_OP = "Event Log!N9:P10";
-export const RANGE_UPDATE_EVENT_OP = "Event Log!N15:P20";
-export const RANGE_DELETE_EVENT_OP = "Event Log!N28:P28";
-export const RANGE_UPDATE_QUESTION_DATA_OP_1 = "Event Log!N33:P33";
-export const RANGE_UPDATE_QUESTION_DATA_OP_2 = "Event Log!M40:P";
+export const RANGE_LOAD_EVENT_TYPE_OP = "Event Log!N4:P4";
+export const RANGE_UPDATE_EVENT_TYPE_OP = "Event Log!N8:P9";
+export const RANGE_DELETE_EVENT_TYPE_OP = "Event Log!N13:P14";
+export const RANGE_LOAD_EVENT_OP = "Event Log!N19:P19";
+export const RANGE_UPDATE_EVENT_OP = "Event Log!N23:P27";
+export const RANGE_DELETE_EVENT_OP = "Event Log!N35:P35";
+export const RANGE_LOAD_QUESTION_DATA_OP = "Event Log!N40:P40";
+export const RANGE_UPDATE_QUESTION_DATA_OP = "Event Log!M47:P";
 
 export const RANGE_GOOGLE_SHEETS_SIGN_IN = "A1:ZZ";
 export const RANGE_GOOGLE_SHEETS_SIGN_IN_TITLES = "A1:ZZ1";
@@ -100,8 +102,9 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
 
     // Obtain the sheet values to update for members
     let membersValues = [];
-    for(let key in group.members) {
-        const member = group.members[key];
+    for(const utEid of group.memberIds) {
+        const member = group.members[utEid];
+        const birthday = member.birthday ? member.birthday.format(DATE_FORMAT) : "";
         membersValues.push([
             member.memberId,
             member.firstName,
@@ -109,7 +112,7 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
             member.utEid,
             member.email,
             member.phoneNumber,
-            member.birthday.format(DATE_FORMAT),
+            birthday,
             member.major,
             member.graduationYear,
             member.fallPoints,
@@ -172,8 +175,91 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
     return true;
 }
 
+// Loads event type information onto the log sheet for the group
+export async function finishLoadEventType(group: Group, eventTypeId: number) {
+    const eventType = group.eventTypes[eventTypeId];
+    const sheets = await getSheets();
+
+    // Clear the data in the logs with the previous input for the event type
+    const res1 = await sheets.spreadsheets.values.batchClear({
+        spreadsheetId: group.logSheetUri,
+        requestBody: {
+            ranges: [
+                RANGE_LOAD_EVENT_TYPE_OP,
+                RANGE_UPDATE_EVENT_TYPE_OP,
+            ]
+        }
+    });
+
+    // Update the cell values
+    const res2 = await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: group.logSheetUri,
+        requestBody: {
+            valueInputOption: "USER_ENTERED",
+            data: [
+                {
+                    range: RANGE_LOAD_EVENT_TYPE_OP,
+                    values: [[ eventTypeId ]]
+                },
+                {
+                    range: RANGE_UPDATE_EVENT_TYPE_OP,
+                    majorDimension: "COLUMNS",
+                    values: [[ eventType.name, eventType.points ]]
+                }
+            ]
+        }
+    });
+
+    return true;
+}
+
+// Loads event information onto the log sheet for the group
+export async function finishLoadEvent(group: Group, eventId: number) {
+    const event = group.events[eventId];
+    const sheets = await getSheets();
+
+    // Obtain the string version of the source type
+    let sourceType : string;
+    if(event.sourceType == SourceType.GoogleSheets) sourceType = "GoogleSheets";
+    else if(event.sourceType == SourceType.GoogleForms) sourceType = "GoogleForms";
+
+    // Clear the data in the logs with the previous input for the event
+    const res1 = await sheets.spreadsheets.values.batchClear({
+        spreadsheetId: group.logSheetUri,
+        requestBody: {
+            ranges: [
+                RANGE_LOAD_EVENT_OP,
+                RANGE_UPDATE_EVENT_OP,
+            ]
+        }
+    });
+
+    // Update the cell values
+    const res2 = await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: group.logSheetUri,
+        requestBody: {
+            valueInputOption: "USER_ENTERED",
+            data: [
+                {
+                    range: RANGE_LOAD_EVENT_OP,
+                    values: [[ eventId ]]
+                },
+                {
+                    range: RANGE_UPDATE_EVENT_OP,
+                    majorDimension: "COLUMNS",
+                    values: [[ event.eventName, event.eventDate.format(DATE_FORMAT),
+                        event.source, sourceType, event.eventType.id ]]
+                }
+            ]
+        }
+    });
+
+    return true;
+}
+
 // Loads question data onto the log sheet for the group from Google Sheets
-export async function loadQuestionDataFromGoogleSheets(group: Group, eventId: number, event: Event) {
+export async function loadQuestionDataFromGoogleSheets(group: Group, eventId: number) {
+    const event = group.events[eventId];
     const sheets = await getSheets();
 
     // Get the first row of the spreadsheet -- those are the "questions" in this case
@@ -182,7 +268,7 @@ export async function loadQuestionDataFromGoogleSheets(group: Group, eventId: nu
         range: RANGE_GOOGLE_SHEETS_SIGN_IN_TITLES
     });
 
-    // Create the 2D array for the question data to update the logs with
+    // Create the array with question property matches to update the logs with
     const matchesToDisplay = [];
     res1.data.values[0].forEach((question, index) => {
         const questionId = `${index}`; // for clarity
@@ -209,7 +295,8 @@ export async function loadQuestionDataFromGoogleSheets(group: Group, eventId: nu
 }
 
 // Loads question data onto the log sheet for the group from Google Sheets
-export async function loadQuestionDataFromGoogleForms(group: Group, eventId: number, event: Event) {
+export async function loadQuestionDataFromGoogleForms(group: Group, eventId: number) {
+    const event = group.events[eventId];
     const forms = await getForms();
 
     // Retreive all the questions from Google Forms
@@ -217,12 +304,15 @@ export async function loadQuestionDataFromGoogleForms(group: Group, eventId: num
         formId: event.source
     });
 
-    // Create the 2D array for the question data to update the logs with
+    // Create the array with question property matches to update the logs with
     const matchesToDisplay = [];
     res1.data.items.forEach(item => {
         const question = item.title;
-        const questionId = item.questionItem.question.questionId;
+        const questionId = item.questionItem?.question.questionId;
         let property : MemberProperty;
+
+        // Skip this item if it's not a question
+        if(!questionId) return;
 
         // Check if the question ID is in the question data for the current event
         const questionIdCheck = event.questionData.questionIds
@@ -252,8 +342,8 @@ async function finishLoadQuestionData(group: Group, eventId: number, matchesToDi
         spreadsheetId: group.logSheetUri,
         requestBody: {
             ranges: [
-                RANGE_UPDATE_QUESTION_DATA_OP_1,
-                RANGE_UPDATE_QUESTION_DATA_OP_2,
+                RANGE_LOAD_QUESTION_DATA_OP,
+                RANGE_UPDATE_QUESTION_DATA_OP,
             ]
         }
     });
@@ -275,32 +365,32 @@ async function finishLoadQuestionData(group: Group, eventId: number, matchesToDi
                     sheetId: 0,
                     startColumnIndex: 12,
                     endColumnIndex: 14,
-                    startRowIndex: 39 + index,
-                    endRowIndex: 40 + index
+                    startRowIndex: 46 + index,
+                    endRowIndex: 47 + index
                 }
             }
         });
     })
 
-    // Update the cells
+    // Update the cell values
     const res2 = await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: group.logSheetUri,
         requestBody: {
             valueInputOption: "USER_ENTERED",
             data: [
                 {
-                    range: RANGE_UPDATE_QUESTION_DATA_OP_1,
+                    range: RANGE_LOAD_QUESTION_DATA_OP,
                     values: [[ eventId ]]
                 },
                 {
-                    range: RANGE_UPDATE_QUESTION_DATA_OP_2,
+                    range: RANGE_UPDATE_QUESTION_DATA_OP,
                     values: values
                 }
             ]
         }
     });
 
-    // Add formatting
+    // Add formatting to the cells
     const res3 = await sheets.spreadsheets.batchUpdate({
         spreadsheetId: group.logSheetUri,
         requestBody: {

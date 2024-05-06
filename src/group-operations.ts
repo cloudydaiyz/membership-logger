@@ -3,6 +3,7 @@ import { Group, getSemesterFromDate } from "./group.js";
 import { QuestionPropertyMatch, Event, EventType, SourceType, QuestionData, MemberProperty } from "./group-interfaces.js";
 import crypto from "crypto";
 import dayjs from "dayjs";
+import { getForms, getSheets } from "./google-client.js";
 
 // Updates an event's type
 function updateTypeForEvent(event: Event, type: EventType) {
@@ -194,7 +195,7 @@ export class UpdateEventBuilder extends OperationBuilder {
         const eventDate = dayjs(this.rawEventDate);
         const eventType = this.group.eventTypes[this.eventTypeId];
         const sourceType: SourceType = SourceType[this.sourceType];
-        if(eventDate == undefined || eventType == undefined) return false;
+        if(!eventDate.isValid() || eventType == undefined) return false;
 
         // Check whether or not the event exists in the Group already
         let event: Event;
@@ -299,7 +300,7 @@ export class UpdateQuestionDataBuilder extends OperationBuilder {
     async performOperation() {
         const event = this.group.events[this.eventId];
         const questionData = getQuestionData(this.questionToPropertyMatches);
-        if(questionData == undefined) return false;
+        if(!questionData) return false;
 
         // Update the question data for the event based on the input
         event.questionData = questionData;

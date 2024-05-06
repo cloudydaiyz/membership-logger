@@ -61,6 +61,7 @@ export class Group {
     // Event Data
     eventTypes: EventType[];
     events: Event[];
+    memberIds: string[];
     members: GenericMap<Member>;
     numMembers: number;
     
@@ -69,6 +70,7 @@ export class Group {
         this.name = settings.name;
         this.eventTypes = [];
         this.events = [];
+        this.memberIds = [];
         this.members = {};
         this.numMembers = 0;
         this.logSheetUri = settings.logSheetUri;
@@ -120,12 +122,13 @@ export class Group {
             } else if(property == "Phone Number" && member.phoneNumber == "") {
                 member.phoneNumber = answer;
             } else if(property == "Birthday" && member.birthday == null) {
-                member.birthday = dayjs(answer); // update this
-                if(!member.birthday.isValid()) member.birthday = undefined;
+                member.birthday = dayjs(answer);
+                if(!member.birthday.isValid()) member.birthday = null;
             } else if(property == "Major" && member.major == "") {
                 member.major = answer;
             } else if(property == "Graduation Year" && member.graduationYear == 0) {
-                member.graduationYear = parseInt(answer) || 0;
+                const gradYear = Number(answer);
+                member.graduationYear = Number.isNaN(gradYear) ? 0 : gradYear;
             }
         }
     }
@@ -137,11 +140,16 @@ export class Group {
         return this.getEventData();
     }
 
-    // Empties membership information and refreshes existing event information for
+    // Empties event information and refreshes existing event information for
     // this group
     async softReset() {
-        this.members = {};
-        this.numMembers = 0;
+        // Clear event data from each member (so basically the points they've gained)
+        for(const utEid of this.memberIds) {
+            const member = this.members[utEid];
+            member.fallPoints = 0;
+            member.springPoints = 0;
+            member.totalPoints = 0;
+        }
 
         // Clear membership information from events
         this.events.forEach(event => event.attendees = {});
@@ -152,6 +160,7 @@ export class Group {
     hardReset() {
         this.eventTypes = [];
         this.events = [];
+        this.memberIds = [];
         this.members = {};
         this.numMembers = 0;
     }
@@ -176,7 +185,7 @@ export class Group {
             const type: EventType = {
                 id: index,
                 name: row[1],
-                points: parseInt(row[2])
+                points: Number(row[2])
             }
             this.eventTypes.push(type);
         });
@@ -205,7 +214,7 @@ export class Group {
                 eventDate: dayjs(row[2]),
                 source: row[3],
                 sourceType: srcType,
-                eventType: this.eventTypes[parseInt(row[5])],
+                eventType: this.eventTypes[Number(row[5])],
                 attendees: {},
                 sims: sims,
                 questionData: questionData
@@ -216,21 +225,24 @@ export class Group {
         // Retrieve members from sheet data
         const members = res1.data.valueRanges[2];
         members.values?.forEach((row) => {
+            const gradYear = Number(row[8]);
+            const birthday = dayjs(row[6]);
             const member: Member = {
                 firstName: row[1],
                 lastName: row[2],
-                utEid: row[3],
+                utEid: row[3].trim().toLowerCase(),
                 email: row[4],
                 phoneNumber: row[5],
                 memberId: this.numMembers,
-                graduationYear: parseInt(row[8]) || 0,
-                birthday: dayjs(row[6]),
+                graduationYear: Number.isNaN(gradYear) ? 0 : gradYear,
+                birthday: birthday.isValid() ? birthday : null,
                 major: row[7],
                 fallPoints: 0,
                 springPoints: 0,
                 totalPoints: 0
             }
             this.members[member.utEid] = member;
+            this.memberIds.push(member.utEid);
             this.numMembers++;
         });
     }
@@ -304,7 +316,7 @@ export class Group {
         for(const questionId in event.questionData.questionIdToPropertyMap) {
             const property = event.questionData.questionIdToPropertyMap[questionId];
             if(property == "UT EID") {
-                utEidColumn = parseInt(questionId);
+                utEidColumn = Number(questionId);
             }
         }
 
@@ -331,14 +343,15 @@ export class Group {
                 }
     
                 // Check if it's a pre-existing member based on the UT EID response
-                const utEID = row[utEidColumn];
-                if(utEID == "") {
+                const utEid = row[utEidColumn].trim().toLowerCase();
+                if(utEid == "") {
                     return; // Discard if there's no UT EID provided
-                } else if(utEID in this.members) {
-                    member = this.members[utEID];
+                } else if(utEid in this.members) {
+                    member = this.members[utEid];
                 } else {
                     this.numMembers++;
-                    this.members[utEID] = member;
+                    this.memberIds.push(utEid);
+                    this.members[utEid] = member;
                 }
     
                 // Update member information based on values in the row
@@ -347,8 +360,8 @@ export class Group {
                 });
     
                 // Add member to event if they haven't already been added
-                if(!(utEID in event.attendees)) {
-                    event.attendees[utEID] = member;
+                if(!(utEid in event.attendees)) {
+                    event.attendees[utEid] = member;
                     
                     const semester = getSemesterFromDate(event.eventDate);
                     if(semester == "Fall") member.fallPoints += event.eventType.points;
@@ -404,12 +417,14 @@ export class Group {
                 if(!(utEidQuestionID in response.answers)) return;
                 
                 // Check if it's a pre-existing member based on the UT EID response
-                const utEID = response.answers[utEidQuestionID].textAnswers.answers[0].value;
-                if(utEID in this.members) {
-                    member = this.members[utEID];
+                const utEid = response.answers[utEidQuestionID].textAnswers.answers[0].value
+                    .trim().toLowerCase();
+                if(utEid in this.members) {
+                    member = this.members[utEid];
                 } else {
                     this.numMembers++;
-                    this.members[utEID] = member;
+                    this.memberIds.push(utEid);
+                    this.members[utEid] = member;
                 }
     
                 // Update membership information based on responses
@@ -420,8 +435,8 @@ export class Group {
                 }
     
                 // Add member to event if they haven't already been added
-                if(!(utEID in event.attendees)) {
-                    event.attendees[utEID] = member;
+                if(!(utEid in event.attendees)) {
+                    event.attendees[utEid] = member;
 
                     const semester = getSemesterFromDate(event.eventDate);
                     if(semester == "Fall") member.fallPoints += event.eventType.points;

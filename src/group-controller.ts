@@ -1,5 +1,5 @@
 import express from "express";
-import { deleteEvent, deleteEventFromLog, deleteEventType, deleteEventTypeFromLog, getAllGroups, getGroup, loadQuestionData, loadQuestionDataFromLog as loadQuestionDataFromLog, refreshAllGroups, refreshGroup, updateEvent, updateEventFromLog, updateEventType, updateEventTypeFromLog, updateQuestionData, updateQuestionDataFromLog } from "./group-manager.js";
+import { deleteEvent, deleteEventFromLog, deleteEventType, deleteEventTypeFromLog, getAllGroups, getGroup, loadEvent, loadEventFromLog, loadEventType, loadEventTypeFromLog, loadQuestionData, loadQuestionDataFromLog as loadQuestionDataFromLog, refreshAllGroups, refreshGroup, updateEvent, updateEventFromLog, updateEventType, updateEventTypeFromLog, updateQuestionData, updateQuestionDataFromLog } from "./group-manager.js";
 import { getSheets } from "./google-client.js";
 import { QuestionPropertyMatch } from "./group-interfaces.js";
 import { isMemberProperty } from "./group.js";
@@ -18,17 +18,41 @@ groupRouter.post('/', (req, res) => {
 
 // Get a specific group
 groupRouter.get('/:id', (req, res) => {
-    getGroup(parseInt(req.params.id)).then(val => res.send(val));
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
+    getGroup(groupId).then(val => res.send(val));
 });
 
 // Refresh a specific group
 groupRouter.post('/:id', (req, res) => {
-    refreshGroup(parseInt(req.params.id)).then(val => res.send(val));
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
+    refreshGroup(groupId).then(val => res.send(val));
+});
+
+// Perform load event type operation
+groupRouter.post('/:id/loadEventType', (req, res) => {
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
+    if(req.query.fromLog == "true") {
+        loadEventTypeFromLog(groupId).then(val => res.send(val));
+        return;
+    }
+
+    // Validate request parameters
+    if(typeof req.body.eventTypeId != "number") { res.send(false); return; }
+
+    loadEventType(groupId, req.body.eventTypeId).then(val => res.send(val));
 });
 
 // Perform update event type operation
 groupRouter.post('/:id/updateEventType', (req, res) => {
-    const groupId = parseInt(req.params.id);
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
     if(req.query.fromLog == "true") {
         updateEventTypeFromLog(groupId).then(val => res.send(val));
         return;
@@ -48,7 +72,9 @@ groupRouter.post('/:id/updateEventType', (req, res) => {
 
 // Perform delete event type operation
 groupRouter.post('/:id/deleteEventType', (req, res) => {
-    const groupId = parseInt(req.params.id);
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
     if(req.query.fromLog == "true") {
         deleteEventTypeFromLog(groupId).then(val => res.send(val));
         return;
@@ -62,9 +88,27 @@ groupRouter.post('/:id/deleteEventType', (req, res) => {
         .then(val => res.send(val));
 });
 
+// Perform load event operation
+groupRouter.post('/:id/loadEvent', (req, res) => {
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
+    if(req.query.fromLog == "true") {
+        loadEventFromLog(groupId).then(val => res.send(val));
+        return;
+    }
+
+    // Validate request parameters
+    if(typeof req.body.eventId != "number") { res.send(false); return; }
+
+    loadEvent(groupId, req.body.eventId).then(val => res.send(val));
+});
+
 // Perform update event operation
 groupRouter.post('/:id/updateEvent', (req, res) => {
-    const groupId = parseInt(req.params.id);
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
     if(req.query.fromLog == "true") {
         updateEventFromLog(groupId).then(val => res.send(val));
         return;
@@ -88,7 +132,9 @@ groupRouter.post('/:id/updateEvent', (req, res) => {
 
 // Perform delete event operation
 groupRouter.post('/:id/deleteEvent', (req, res) => {
-    const groupId = parseInt(req.params.id);
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
     if(req.query.fromLog == "true") {
         deleteEventFromLog(groupId).then(val => res.send(val));
         return;
@@ -100,9 +146,11 @@ groupRouter.post('/:id/deleteEvent', (req, res) => {
     deleteEvent(groupId, req.body.eventId).then(val => res.send(val));
 });
 
-// Perform update question data operation
+// Perform load question data operation
 groupRouter.post('/:id/loadQuestionData', (req, res) => {
-    const groupId = parseInt(req.params.id);
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
     if(req.query.fromLog == "true") {
         loadQuestionDataFromLog(groupId).then(val => res.send(val));
         return;
@@ -116,7 +164,9 @@ groupRouter.post('/:id/loadQuestionData', (req, res) => {
 
 // Perform update question data operation
 groupRouter.post('/:id/updateQuestionData', (req, res) => {
-    const groupId = parseInt(req.params.id);
+    const groupId = Number(req.params.id);
+    if(Number.isNaN(groupId)) { res.send(false); return; }
+
     if(req.query.fromLog == "true") {
         updateQuestionDataFromLog(groupId).then(val => res.send(val));
         return;

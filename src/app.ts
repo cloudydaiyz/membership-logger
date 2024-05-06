@@ -7,7 +7,7 @@ import "dotenv/config";
 // Environment variables
 export const UPDATE_LOGS = process.env.MEMBERSHIP_LOGGER_UPDATE_LOGS == '1' ? true : false;
 export const SERVER_PORT = process.env.MEMBERSHIP_LOGGER_SERVER_PORT != undefined ?
-    parseInt(process.env.MEMBERSHIP_LOGGER_SERVER_PORT) : 3000;
+    Number(process.env.MEMBERSHIP_LOGGER_SERVER_PORT) : 3000;
 
 // Set up and start the app
 console.log("\x1b[1mSTARTING MEMBERSHIP LOGGER\x1b[0m");

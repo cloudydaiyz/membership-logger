@@ -16,7 +16,7 @@ async function testing() {
     // await refreshAllGroups();
 
     const exampleGroup = await groupTest(false);
-    
+
     // await initTestGroups([exampleGroup]);
     // await getMemberInfoFromSheetsTest(exampleGroup);
     // await getMemberInfoFromFormsTest(exampleGroup);
@@ -364,14 +364,14 @@ async function updateQuestionDataTest(group: Group) {
 async function loadQuestionDataFromGoogleSheetsTest(group: Group) {
     console.log(group.events[0].sourceType);
     console.log("LOADING QUESTION DATA FROM SHEETS");
-    const result = await loadQuestionDataFromGoogleSheets(group, 0, group.events[0]);
+    const result = await loadQuestionDataFromGoogleSheets(group, 0);
     console.log("OPERATION RESULT: " + result);
 }
 
 async function loadQuestionDataFromGoogleFormsTest(group: Group) {
     console.log(group.events[0].sourceType);
     console.log("LOADING QUESTION DATA FROM FORMS");
-    const result = await loadQuestionDataFromGoogleForms(group, 0, group.events[0]);
+    const result = await loadQuestionDataFromGoogleForms(group, 0);
     console.log("OPERATION RESULT: " + result);
 }
 
