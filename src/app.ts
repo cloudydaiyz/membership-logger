@@ -2,7 +2,6 @@ import { authorizeGoogle } from "./google-client.js";
 import { groupRouter } from "./group-controller.js";
 import { initGroups } from "./group-manager.js";
 import express from "express";
-import "dotenv/config";
 
 // Environment variables
 export const UPDATE_LOGS = process.env.MEMBERSHIP_LOGGER_UPDATE_LOGS == '1' ? true : false;

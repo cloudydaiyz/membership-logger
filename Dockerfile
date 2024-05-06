@@ -1,0 +1,15 @@
+FROM node:20-bullseye
+
+ENV MEMBERSHIP_LOGGER_SERVER_PORT = 3000
+
+ENV MEMBERSHIP_LOGGER_UPDATE_LOGS = 1
+
+WORKDIR /app
+
+COPY . .
+
+EXPOSE $APP_PORT
+
+RUN npm install
+
+CMD npm start
