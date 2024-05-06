@@ -51,12 +51,10 @@ export function getQuestionData(matches: QuestionPropertyMatch[]) {
 // Parent class for builders of all possible operations on a group
 export class OperationBuilder {
     // Default fields for a builder, these get initialized by all constructors
-    hash: string;
     group: Group;
 
     // Assigns a random hash and a group to the builder
     constructor(group: Group) {
-        this.hash = crypto.randomBytes(10).toString("hex");
         this.group = group;
     }
 
