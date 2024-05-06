@@ -1,4 +1,4 @@
-// Handles all Group functionality, including updating logs and log operations
+// Handles all Group functionality, including updating logs and log operations 
 import { Event, EventType, Member, SourceType, QuestionData, QuestionPropertyMatch, GroupSettings, GenericMap, MemberProperty } from "./group-interfaces.js";
 import { DeleteEventTypeBuilder, OperationBuilder, UpdateEventBuilder, UpdateEventTypeBuilder, UpdateQuestionDataBuilder } from "./group-operations.js";
 import { google } from "googleapis";
