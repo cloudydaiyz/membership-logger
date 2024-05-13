@@ -2,7 +2,7 @@
 import * as fs from "node:fs/promises";
 import { Group, isMemberProperty } from "./group.js";
 import { GroupSettings, GroupMap, QuestionPropertyMatch, SourceType } from "./group-interfaces.js";
-import { GROUPS_PATH } from "./secrets.js";
+import { GROUPS_PATH } from "./app.js";
 import { RANGE_DELETE_EVENT_OP, RANGE_DELETE_EVENT_TYPE_OP, RANGE_UPDATE_EVENT_OP, RANGE_UPDATE_EVENT_TYPE_OP, RANGE_LOAD_QUESTION_DATA_OP, RANGE_UPDATE_QUESTION_DATA_OP, loadQuestionDataFromGoogleForms, loadQuestionDataFromGoogleSheets, updateLogsForGroup, finishLoadEventType, RANGE_LOAD_EVENT_TYPE_OP, finishLoadEvent, RANGE_LOAD_EVENT_OP } from "./log-publisher.js";
 import { DeleteEventBuilder, DeleteEventTypeBuilder, UpdateEventBuilder, UpdateEventTypeBuilder, UpdateQuestionDataBuilder } from "./group-operations.js";
 import { getSheets } from "./google-client.js";
@@ -190,8 +190,8 @@ export async function updateEventTypeFromLog(groupId: number) {
     });
 
     // Validate value ranges
-    const inputs1 = res1.data.valueRanges?.[0].values[0];
-    const inputs2 = res1.data.valueRanges?.[1]?.values[0];
+    const inputs1 = res1.data.valueRanges?.[0].values?.[0];
+    const inputs2 = res1.data.valueRanges?.[1]?.values?.[0];
     if(!inputs2 || inputs2.length != 2) {
         group.logger.log("UPDATE EVENT TYPE ERROR: Not all required fields are set.");
         group.logger.send();

@@ -3,7 +3,7 @@ import path from "path";
 import process from "process";
 import { google, sheets_v4, forms_v1 } from "googleapis";
 import { GoogleAuth } from "google-auth-library";
-import { SERVICE_KEY_PATH } from "./secrets.js";
+import { SERVICE_KEY_PATH } from "./app.js";
 
 const SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",

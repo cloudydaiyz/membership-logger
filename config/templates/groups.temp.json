@@ -7,5 +7,14 @@
         "simsIV": "",
         "outputCapacity": 200,
         "outputRetentionPeriod": 7
+    },
+    {
+        "id": 1,
+        "name": "group2's name",
+        "logSheetUri": "link to group 2's membership log",
+        "version": "1.0.0",
+        "simsIV": "",
+        "outputCapacity": 200,
+        "outputRetentionPeriod": 7
     }
 ]
