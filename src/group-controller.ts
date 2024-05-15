@@ -1,5 +1,5 @@
 import express from "express";
-import { deleteEvent, deleteEventFromLog, deleteEventType, deleteEventTypeFromLog, getAllGroups, getGroup, loadEvent, loadEventFromLog, loadEventType, loadEventTypeFromLog, loadQuestionData, loadQuestionDataFromLog as loadQuestionDataFromLog, refreshAllGroups, refreshGroup, updateEvent, updateEventFromLog, updateEventType, updateEventTypeFromLog, updateQuestionData, updateQuestionDataFromLog } from "./group-manager.js";
+import { deleteEvent, deleteEventFromLog, deleteEventType, deleteEventTypeFromLog, getAllGroups, getGroup, isValidEvent, isValidEventType, isValidGroup, isValidSourceType, loadEvent, loadEventFromLog, loadEventType, loadEventTypeFromLog, loadQuestionData, loadQuestionDataFromLog as loadQuestionDataFromLog, refreshAllGroups, refreshGroup, updateEvent, updateEventFromLog, updateEventType, updateEventTypeFromLog, updateQuestionData, updateQuestionDataFromLog } from "./group-manager.js";
 import { getSheets } from "./google-client.js";
 import { QuestionPropertyMatch } from "./group-interfaces.js";
 import { isMemberProperty } from "./group.js";
@@ -19,7 +19,7 @@ groupRouter.post('/', (req, res) => {
 // Get a specific group
 groupRouter.get('/:id', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     getGroup(groupId).then(val => res.send(val));
 });
@@ -27,7 +27,7 @@ groupRouter.get('/:id', (req, res) => {
 // Refresh a specific group
 groupRouter.post('/:id', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     refreshGroup(groupId).then(val => res.send(val));
 });
@@ -35,7 +35,7 @@ groupRouter.post('/:id', (req, res) => {
 // Perform load event type operation
 groupRouter.post('/:id/loadEventType', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         loadEventTypeFromLog(groupId).then(val => res.send(val));
@@ -43,7 +43,7 @@ groupRouter.post('/:id/loadEventType', (req, res) => {
     }
 
     // Validate request parameters
-    if(typeof req.body.eventTypeId != "number") { res.send(false); return; }
+    if(typeof req.body.eventTypeId != "number" || !isValidEventType(groupId, req.body.eventTypeId)) { res.send(false); return; }
 
     loadEventType(groupId, req.body.eventTypeId).then(val => res.send(val));
 });
@@ -51,7 +51,7 @@ groupRouter.post('/:id/loadEventType', (req, res) => {
 // Perform update event type operation
 groupRouter.post('/:id/updateEventType', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         updateEventTypeFromLog(groupId).then(val => res.send(val));
@@ -62,9 +62,9 @@ groupRouter.post('/:id/updateEventType', (req, res) => {
     if(typeof req.body.typeId == "undefined") req.body.typeId = -1;
 
     // Validate request parameters
-    if(typeof req.body.typeId != "number") { res.send(false); return; }
+    if(typeof req.body.typeId != "number" || !isValidEventType(groupId, req.body.typeId, true)) { res.send(false); return; }
     if(typeof req.body.typeName != "string") { res.send(false); return; }
-    if(typeof req.body.points != "number") { res.send(false); return; }
+    if(typeof req.body.points != "number" || req.body.points < 0) { res.send(false); return; }
 
     updateEventType(groupId, req.body.typeId, req.body.typeName, req.body.points)
         .then(val => res.send(val));
@@ -73,7 +73,7 @@ groupRouter.post('/:id/updateEventType', (req, res) => {
 // Perform delete event type operation
 groupRouter.post('/:id/deleteEventType', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         deleteEventTypeFromLog(groupId).then(val => res.send(val));
@@ -81,8 +81,8 @@ groupRouter.post('/:id/deleteEventType', (req, res) => {
     }
 
     // Validate request parameters
-    if(typeof req.body.typeIdToRemove != "number") { res.send(false); return; }
-    if(typeof req.body.typeIdToReplace != "number") { res.send(false); return; }
+    if(typeof req.body.typeIdToRemove != "number" || !isValidEventType(groupId, req.body.typeIdToRemove)) { res.send(false); return; }
+    if(typeof req.body.typeIdToReplace != "number" || !isValidEventType(groupId, req.body.typeIdToRemove)) { res.send(false); return; }
 
     deleteEventType(groupId, req.body.typeIdToRemove, req.body.typeIdToReplace)
         .then(val => res.send(val));
@@ -91,7 +91,7 @@ groupRouter.post('/:id/deleteEventType', (req, res) => {
 // Perform load event operation
 groupRouter.post('/:id/loadEvent', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         loadEventFromLog(groupId).then(val => res.send(val));
@@ -99,7 +99,7 @@ groupRouter.post('/:id/loadEvent', (req, res) => {
     }
 
     // Validate request parameters
-    if(typeof req.body.eventId != "number") { res.send(false); return; }
+    if(typeof req.body.eventId != "number" || !isValidEvent(groupId, req.body.eventId)) { res.send(false); return; }
 
     loadEvent(groupId, req.body.eventId).then(val => res.send(val));
 });
@@ -107,7 +107,7 @@ groupRouter.post('/:id/loadEvent', (req, res) => {
 // Perform update event operation
 groupRouter.post('/:id/updateEvent', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         updateEventFromLog(groupId).then(val => res.send(val));
@@ -118,12 +118,12 @@ groupRouter.post('/:id/updateEvent', (req, res) => {
     if(typeof req.body.eventId == "undefined") req.body.eventId = -1;
 
     // Validate request parameters
-    if(typeof req.body.eventId != "number") { res.send(false); return; }
+    if(typeof req.body.eventId != "number" || !isValidEvent(groupId, req.body.eventId, true)) { res.send(false); return; }
     if(typeof req.body.eventTitle != "string") { res.send(false); return; }
     if(typeof req.body.eventDate != "string") { res.send(false); return; }
     if(typeof req.body.source != "string") { res.send(false); return; }
-    if(typeof req.body.sourceType != "string") { res.send(false); return; }
-    if(typeof req.body.eventTypeId != "number") { res.send(false); return; }
+    if(typeof req.body.sourceType != "string" || !isValidSourceType(req.body.sourceType)) { res.send(false); return; }
+    if(typeof req.body.eventTypeId != "number" || !isValidEventType(groupId, req.body.eventTypeId)) { res.send(false); return; }
 
     updateEvent(groupId, req.body.eventId, req.body.eventTitle, req.body.eventDate,
         req.body.source, req.body.sourceType, req.body.eventTypeId)
@@ -133,7 +133,7 @@ groupRouter.post('/:id/updateEvent', (req, res) => {
 // Perform delete event operation
 groupRouter.post('/:id/deleteEvent', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         deleteEventFromLog(groupId).then(val => res.send(val));
@@ -141,7 +141,7 @@ groupRouter.post('/:id/deleteEvent', (req, res) => {
     }
 
     // Validate request parameters
-    if(typeof req.body.eventId != "number") { res.send(false); return; }
+    if(typeof req.body.eventId != "number" || !isValidEvent(groupId, req.body.eventId)) { res.send(false); return; }
 
     deleteEvent(groupId, req.body.eventId).then(val => res.send(val));
 });
@@ -149,7 +149,7 @@ groupRouter.post('/:id/deleteEvent', (req, res) => {
 // Perform load question data operation
 groupRouter.post('/:id/loadQuestionData', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         loadQuestionDataFromLog(groupId).then(val => res.send(val));
@@ -157,7 +157,7 @@ groupRouter.post('/:id/loadQuestionData', (req, res) => {
     }
 
     // Validate request parameters
-    if(typeof req.body.eventId != "number") { res.send(false); return; }
+    if(typeof req.body.eventId != "number" || !isValidEvent(groupId, req.body.eventId)) { res.send(false); return; }
 
     loadQuestionData(groupId, req.body.eventId).then(val => res.send(val));
 });
@@ -165,7 +165,7 @@ groupRouter.post('/:id/loadQuestionData', (req, res) => {
 // Perform update question data operation
 groupRouter.post('/:id/updateQuestionData', (req, res) => {
     const groupId = Number(req.params.id);
-    if(Number.isNaN(groupId)) { res.send(false); return; }
+    if(!isValidGroup(groupId)) { res.send(false); return; }
 
     if(req.query.fromLog == "true") {
         updateQuestionDataFromLog(groupId).then(val => res.send(val));
@@ -173,7 +173,7 @@ groupRouter.post('/:id/updateQuestionData', (req, res) => {
     }
 
     // Validate request parameters
-    if(typeof req.body.eventId != "number") { res.send(false); return; }
+    if(typeof req.body.eventId != "number" || !isValidEvent(groupId, req.body.eventId)) { res.send(false); return; }
     if(typeof req.body.matches != "object" || !Array.isArray(req.body.matches)) { res.send(false); return; }
 
     const matches : QuestionPropertyMatch[] = [];

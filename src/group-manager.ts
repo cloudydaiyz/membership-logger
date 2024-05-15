@@ -10,6 +10,34 @@ import { UPDATE_LOGS } from "./app.js";
 
 export const groups: GroupMap = {};
 
+// Checks whether or not the groupId maps to a valid group
+export function isValidGroup(groupId: number) {
+    return !Number.isNaN(groupId) && groupId in groups;
+}
+
+// Checks whether or not the event ID maps to an event in the group, or if it's -1
+export function isValidEvent(groupId: number, eventId: number, includeNegativeOne?: boolean) {
+    if(!isValidGroup(groupId)) return false;
+
+    const group = groups[groupId];
+    return !Number.isNaN(eventId) 
+        && ((includeNegativeOne && eventId == -1) || (0 <= eventId && eventId < group.events.length));
+}
+
+// Checks whether or not the event type ID maps to an event type, or if it's -1
+export function isValidEventType(groupId: number, eventTypeId: number, includeNegativeOne?: boolean) {
+    if(!isValidGroup(groupId)) return false;
+
+    const group = groups[groupId];
+    return !Number.isNaN(eventTypeId) 
+        && ((includeNegativeOne && eventTypeId == -1) || (0 <= eventTypeId && eventTypeId < group.eventTypes.length));
+}
+
+// Checks whether or not the given string maps to a Source Type
+export function isValidSourceType(sourceType: string) {
+    return Object.values(SourceType).includes(sourceType as SourceType);
+}
+
 // Initializes the groups based on the settings
 export async function initGroups(groupList?: Group[], groupListAppend?: boolean) {
     console.log("Initializing groups...");
@@ -67,6 +95,7 @@ export async function getAllGroups() {
 }
 
 // Retrieves the group with the specified group ID
+// precondition: groupId is valid
 export async function getGroup(groupID: number) {
     return groups[groupID];
 }
@@ -84,15 +113,16 @@ export async function refreshAllGroups() {
         if(UPDATE_LOGS) {
             refreshLogsTasks.push(updateLogsForGroup(group, true, true));
         }
-        refreshLogsTasks.push(group.logger.maintainCapacity());
-        refreshLogsTasks.push(group.logger.deleteOldMessages());
     }
     
     await Promise.all(refreshTasks);
     await Promise.all(refreshLogsTasks);
+
+    return true;
 }
 
 // Refreshes the information for a group
+// precondition: groupId is valid
 export async function refreshGroup(groupId: number) {
     const group = groups[groupId];
 
@@ -112,11 +142,14 @@ export async function refreshGroup(groupId: number) {
 }
 
 // Loads information for an event type into a group's log
+// precondition: all parameters are valid
 export async function loadEventType(groupId: number, eventTypeId: number) {
     const group = groups[groupId];
     return finishLoadEventType(group, eventTypeId);
 }
 
+// Performs the loadEventType operation using log inputs, if valid
+// precondition: groupId is valid
 export async function loadEventTypeFromLog(groupId: number) {
     const group = groups[groupId];
     const sheets = await getSheets();
@@ -139,7 +172,7 @@ export async function loadEventTypeFromLog(groupId: number) {
     const eventTypeId = inputs[0] != "" ? Number(inputs[0]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(eventTypeId) || eventTypeId < -1 || eventTypeId >= group.eventTypes.length) {
+    if(!isValidEventType(groupId, eventTypeId)) {
         group.logger.log(`LOAD EVENT TYPE ERROR: Event Type ID must be a number 
             between 0 and ${group.eventTypes.length - 1}.`);
         group.logger.send();
@@ -151,6 +184,7 @@ export async function loadEventTypeFromLog(groupId: number) {
 }
 
 // Creates or updates the event type for the group
+// precondition: all parameters are valid
 export async function updateEventType(groupId: number, typeId: number, 
     typeName: string, points: number) {
     const group = groups[groupId];
@@ -177,7 +211,8 @@ export async function updateEventType(groupId: number, typeId: number,
     });
 }
 
-// Updates the event type using information from the group's log
+// Performs the updateEventType operation using log inputs, if valid
+// precondition: groupId is valid
 export async function updateEventTypeFromLog(groupId: number) {
     const sheets = await getSheets();
     const group = groups[groupId];
@@ -190,8 +225,8 @@ export async function updateEventTypeFromLog(groupId: number) {
     });
 
     // Validate value ranges
-    const inputs1 = res1.data.valueRanges?.[0].values?.[0];
-    const inputs2 = res1.data.valueRanges?.[1]?.values?.[0];
+    const inputs1 = res1.data.valueRanges[0].values?.[0];
+    const inputs2 = res1.data.valueRanges[1].values?.[0];
     if(!inputs2 || inputs2.length != 2) {
         group.logger.log("UPDATE EVENT TYPE ERROR: Not all required fields are set.");
         group.logger.send();
@@ -204,14 +239,14 @@ export async function updateEventTypeFromLog(groupId: number) {
     const points = inputs2[1] != "" ? Number(inputs2[1]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(typeId) || typeId < -1 || typeId >= group.eventTypes.length) {
+    if(!isValidEventType(groupId, typeId, true)) {
         group.logger.log(`UPDATE EVENT TYPE ERROR: Event Type ID must be a number 
             between 0 and ${group.eventTypes.length - 1}.`);
         group.logger.send();
         return false;
     }
-    if(Number.isNaN(points)) {
-        group.logger.log("UPDATE EVENT TYPE ERROR: Points must be a number.");
+    if(Number.isNaN(points) || points < 0) {
+        group.logger.log("UPDATE EVENT TYPE ERROR: Points must be a number > 0.");
         group.logger.send();
         return false;
     }
@@ -221,6 +256,7 @@ export async function updateEventTypeFromLog(groupId: number) {
 }
 
 // Deletes an event type for the group
+// precondition: all parameters are valid
 export async function deleteEventType(groupID: number, typeIdtoRemove: number, 
     typeIdtoReplace: number) {
     const group = groups[groupID];
@@ -246,6 +282,8 @@ export async function deleteEventType(groupID: number, typeIdtoRemove: number,
     });
 }
 
+// Performs the deleteEventType operation using log inputs, if valid
+// precondition: groupId is valid
 export async function deleteEventTypeFromLog(groupId: number) {
     const sheets = await getSheets();
     const group = groups[groupId];
@@ -270,15 +308,21 @@ export async function deleteEventTypeFromLog(groupId: number) {
     const toReplace = inputs[1] != "" ? Number(inputs[1]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(toRemove) || toRemove < -1 || toRemove >= group.eventTypes.length) {
+    if(!isValidEventType(groupId, toRemove)) {
         group.logger.log(`DELETE EVENT TYPE ERROR: Event Type ID to Remove must be a number 
             between 0 and ${group.eventTypes.length - 1}.`);
         group.logger.send();
         return false;
     }
-    if(Number.isNaN(toReplace) || toReplace < -1 || toReplace >= group.eventTypes.length) {
+    if(!isValidEventType(groupId, toReplace)) {
         group.logger.log(`DELETE EVENT TYPE ERROR: Event Type ID to Replace must be a number 
             between 0 and ${group.eventTypes.length - 1}.`);
+        group.logger.send();
+        return false;
+    }
+    if(toRemove == toReplace) {
+        group.logger.log(`DELETE EVENT TYPE ERROR: Event Type ID to Remove can't equal the
+            Event Type ID to Replace.`);
         group.logger.send();
         return false;
     }
@@ -288,11 +332,14 @@ export async function deleteEventTypeFromLog(groupId: number) {
 }
 
 // Loads information for an event into a group's log
+// precondition: groupId and eventTypeId are valid
 export async function loadEvent(groupId: number, eventTypeId: number) {
     const group = groups[groupId];
     return finishLoadEvent(group, eventTypeId);
 }
 
+// Performs the loadEvent operation using log inputs, if valid
+// precondition: groupId is valid
 export async function loadEventFromLog(groupId: number) {
     const group = groups[groupId];
     const sheets = await getSheets();
@@ -315,8 +362,7 @@ export async function loadEventFromLog(groupId: number) {
     const eventId = inputs[0] != "" ? Number(inputs[0]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(eventId) || eventId < -1 
-        || eventId >= group.events.length) {
+    if(!isValidEvent(groupId, eventId)) {
         group.logger.log(`LOAD EVENT ERROR: Event ID must be a number 
             between 0 and ${group.events.length - 1}.`);
         group.logger.send();
@@ -328,6 +374,7 @@ export async function loadEventFromLog(groupId: number) {
 }
 
 // Creates or updates an event for the group
+// precondition: all parameters are valid
 export async function updateEvent(groupId: number, eventId: number, 
     eventTitle: string, rawEventDate: string, source: string, sourceType: string, 
     eventTypeId: number) {
@@ -358,6 +405,8 @@ export async function updateEvent(groupId: number, eventId: number,
     });
 }
 
+// Performs the updateEvent operation using log inputs, if valid
+// precondition: groupId is valid
 export async function updateEventFromLog(groupId: number) {
     const sheets = await getSheets();
     const group = groups[groupId];
@@ -370,8 +419,8 @@ export async function updateEventFromLog(groupId: number) {
     });
 
     // Validate the value ranges
-    const inputs1 = res1.data.valueRanges?.[0].values[0];
-    const inputs2 = res1.data.valueRanges?.[1]?.values[0];
+    const inputs1 = res1.data.valueRanges[0].values?.[0];
+    const inputs2 = res1.data.valueRanges[1].values?.[0];
     if(!inputs2 || inputs2.length != 5) {
         group.logger.log("UPDATE EVENT ERROR: Not all required fields are set.");
         group.logger.send();
@@ -387,15 +436,20 @@ export async function updateEventFromLog(groupId: number) {
     const eventTypeId = inputs2[4] != "" ? Number(inputs2[4]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(eventId) || eventId < -1 || eventId >= group.events.length) {
+    if(!isValidEvent(groupId, eventId, true)) {
         group.logger.log(`UPDATE EVENT ERROR: Event ID must be a number 
             between 0 and ${group.events.length - 1}.`);
         group.logger.send();
         return false;
     }
-    if(Number.isNaN(eventTypeId) || eventTypeId < -1 || eventTypeId >= group.eventTypes.length) {
+    if(!isValidEventType(groupId, eventTypeId)) {
         group.logger.log(`UPDATE EVENT ERROR: Event Type ID must be a number 
             between 0 and ${group.eventTypes.length - 1}.`);
+        group.logger.send();
+        return false;
+    }
+    if(!isValidSourceType(sourceType)) {
+        group.logger.log("Invalid source type.");
         group.logger.send();
         return false;
     }
@@ -405,6 +459,7 @@ export async function updateEventFromLog(groupId: number) {
 }
 
 // Deletes the event for the group
+// precondition: groupId and eventId are valid
 export async function deleteEvent(groupId: number, eventId: number) {
     const group = groups[groupId];
     const builder = new DeleteEventBuilder(group);
@@ -428,6 +483,8 @@ export async function deleteEvent(groupId: number, eventId: number) {
     });
 }
 
+// Performs the deleteEvent operation using log inputs, if valid
+// precondition: groupId is valid
 export async function deleteEventFromLog(groupId: number) {
     const sheets = await getSheets();
     const group = groups[groupId];
@@ -450,8 +507,9 @@ export async function deleteEventFromLog(groupId: number) {
     const eventId = inputs[0] != "" ? Number(inputs[0]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(eventId)) {
-        group.logger.log("DELETE EVENT ERROR: Event ID must be a number.");
+    if(!isValidEvent(groupId, eventId)) {
+        group.logger.log(`DELETE EVENT ERROR: Event ID must be a number 
+            between 0 and ${group.events.length - 1}.`);
         group.logger.send();
         return false;
     }
@@ -461,6 +519,7 @@ export async function deleteEventFromLog(groupId: number) {
 }
 
 // Loads the question data for the event in the group's log sheet
+// precondition: groupId and eventId are valid
 export async function loadQuestionData(groupId: number, eventId: number) {
     const group = groups[groupId];
     const event = group.events[eventId];
@@ -489,6 +548,8 @@ export async function loadQuestionData(groupId: number, eventId: number) {
     return false;
 }
 
+// Performs the loadQuestionData operation using log inputs, if valid
+// precondition: groupId is valid
 export async function loadQuestionDataFromLog(groupId: number) {
     const sheets = await getSheets();
     const group = groups[groupId];
@@ -500,10 +561,10 @@ export async function loadQuestionDataFromLog(groupId: number) {
     });
 
     const inputs = res1.data.values?.[0];
-    const eventId = inputs[0] != "" ? Number(inputs[0]) : -1;
+    const eventId = inputs && inputs[0] != "" ? Number(inputs[0]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(eventId) || eventId < -1 || eventId >= group.events.length) {
+    if(!isValidEvent(groupId, eventId)) {
         group.logger.log(`LOAD QUESTION DATA ERROR: Event ID must be a number 
             between 0 and ${group.events.length - 1}.`);
         group.logger.send();
@@ -515,6 +576,7 @@ export async function loadQuestionDataFromLog(groupId: number) {
 }
 
 // Updates question data for the event in the group
+// precondition: groupId and eventId are valid
 export async function updateQuestionData(groupId: number, eventId: number,
     matches: QuestionPropertyMatch[]) {
     const group = groups[groupId];
@@ -540,6 +602,8 @@ export async function updateQuestionData(groupId: number, eventId: number,
     });
 }
 
+// Performs the updateQuestionData operation using log inputs, if valid
+// precondition: groupId is valid
 export async function updateQuestionDataFromLog(groupId: number) {
     const sheets = await getSheets();
     const group = groups[groupId];
@@ -554,7 +618,7 @@ export async function updateQuestionDataFromLog(groupId: number) {
     });
 
     // Validate value ranges
-    const inputs1 = res1.data.valueRanges[0].values[0];
+    const inputs1 = res1.data.valueRanges[0].values?.[0];
     const inputs2 = res1.data.valueRanges[1].values;
     if(!inputs1) {
         group.logger.log("UPDATE QUESTION DATA ERROR: Not all required fields are set.");
@@ -566,8 +630,9 @@ export async function updateQuestionDataFromLog(groupId: number) {
     const eventId = inputs1 && inputs1[0] != "" ? Number(inputs1[0]) : -1;
 
     // Validate parsing numerical input
-    if(Number.isNaN(eventId)) {
-        group.logger.log("UPDATE QUESTION DATA ERROR: Event ID must be a number.");
+    if(!isValidEvent(groupId, eventId)) {
+        group.logger.log(`UPDATE QUESTION DATA ERROR: Event ID must be a number 
+            between 0 and ${group.events.length - 1}.`);
         group.logger.send();
         return false;
     }

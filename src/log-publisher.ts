@@ -27,9 +27,14 @@ export const SHEET_ID_MEMBERS = 1851863886;
 export const SHEET_ID_OUTPUT = 508001939;
 
 // Updates the event & membership information in the group's log
+// precondition: group is valid
 export async function updateLogsForGroup(group: Group, includeEventTypes: boolean, 
     includeEvents: boolean) {
     const sheets = await getSheets();
+
+    const maintainCapacity = await group.logger.maintainCapacity();
+    const deleteOldMessages = await group.logger.deleteOldMessages();
+    if(!maintainCapacity || !deleteOldMessages) return false;
 
     // Decide which information to update
     const rangesToClear = [];
@@ -176,6 +181,7 @@ export async function updateLogsForGroup(group: Group, includeEventTypes: boolea
 }
 
 // Loads event type information onto the log sheet for the group
+// precondition: group and eventTypeId are valid
 export async function finishLoadEventType(group: Group, eventTypeId: number) {
     const eventType = group.eventTypes[eventTypeId];
     const sheets = await getSheets();
@@ -214,6 +220,7 @@ export async function finishLoadEventType(group: Group, eventTypeId: number) {
 }
 
 // Loads event information onto the log sheet for the group
+// precondition: group and eventId are valid
 export async function finishLoadEvent(group: Group, eventId: number) {
     const event = group.events[eventId];
     const sheets = await getSheets();
@@ -258,6 +265,7 @@ export async function finishLoadEvent(group: Group, eventId: number) {
 }
 
 // Loads question data onto the log sheet for the group from Google Sheets
+// precondition: group and eventId are valid
 export async function loadQuestionDataFromGoogleSheets(group: Group, eventId: number) {
     const event = group.events[eventId];
     const sheets = await getSheets();
@@ -295,8 +303,10 @@ export async function loadQuestionDataFromGoogleSheets(group: Group, eventId: nu
 }
 
 // Loads question data onto the log sheet for the group from Google Sheets
+// precondition: group and eventId are valid
 export async function loadQuestionDataFromGoogleForms(group: Group, eventId: number) {
     const event = group.events[eventId];
+
     const forms = await getForms();
 
     // Retreive all the questions from Google Forms
@@ -334,6 +344,8 @@ export async function loadQuestionDataFromGoogleForms(group: Group, eventId: num
     return finishLoadQuestionData(group, eventId, matchesToDisplay);
 }
 
+// Loads question data from the given matches onto the log sheet for the group
+// precondition: group, eventId, and matchesToDisplay are valid
 async function finishLoadQuestionData(group: Group, eventId: number, matchesToDisplay: any[]) {
     const sheets = await getSheets();
 

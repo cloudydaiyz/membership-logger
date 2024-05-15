@@ -65,11 +65,6 @@ export class OperationBuilder {
 
         return fieldsUnset.length === 0;
     }
-
-    // Validates the input for the builder before performing an operation
-    validateInput(): boolean {
-        return false;
-    }
     
     // Performs the update to the group associated with this builder
 	async performOperation(): Promise<boolean> {
@@ -79,8 +74,7 @@ export class OperationBuilder {
     // Performs an operation on a group if all the fields are set and all
     // input is valid
     async build() {
-        return this.areAllFieldsSet() && this.validateInput() 
-            && await this.performOperation();
+        return this.areAllFieldsSet() && await this.performOperation();
     }
 }
 
@@ -92,16 +86,6 @@ export class UpdateEventTypeBuilder extends OperationBuilder {
 
     constructor(group: Group) {
         super(group);
-    }
-
-    validateInput() {
-        // Check if each of the inputs to the builder are valid
-        if(this.typeId != -1 && (this.typeId < 0 
-            || this.typeId >= this.group.eventTypes.length)) return false;
-        if(this.points < 0) return false;
-
-        // If it passed all the checks, then return true
-        return true;
     }
 
     async performOperation() {
@@ -119,7 +103,9 @@ export class UpdateEventTypeBuilder extends OperationBuilder {
 
             // The type already exists -- update information for events with this type
             this.group.events.forEach(event => {
-                updateTypeForEvent(event, newType);
+                if(event.eventType.id == this.typeId) {
+                    updateTypeForEvent(event, newType);
+                }
             });
 
             // Replace the existing event type with this new one
@@ -137,13 +123,6 @@ export class DeleteEventTypeBuilder extends OperationBuilder {
 
     constructor(group: Group) {
         super(group);
-    }
-
-    validateInput() {
-        if(this.typeIdtoRemove < 0 || this.typeIdtoRemove >= this.group.eventTypes.length) return false;
-        if(this.typeIdtoReplace < 0 || this.typeIdtoReplace >= this.group.eventTypes.length) return false;
-
-        return true;
     }
 
     async performOperation() {
@@ -176,17 +155,6 @@ export class UpdateEventBuilder extends OperationBuilder {
 
     constructor(group: Group) {
         super(group);
-    }
-
-    validateInput() {
-        // Check if each of the inputs to the builder are valid
-        if(this.eventId != -1 && (this.eventId < 0 
-            || this.eventId >= this.group.events.length)) return false;
-        if(this.sourceType != "GoogleSheets" && this.sourceType != "GoogleForms") return false;
-        if(this.eventTypeId < 0 || this.eventTypeId >= this.group.eventTypes.length) return false;
-
-        // If it passed all the checks, then return true
-        return true;
     }
 
     async performOperation() {
@@ -254,12 +222,6 @@ export class DeleteEventBuilder extends OperationBuilder {
         super(group);
     }
 
-    validateInput() {
-        if(this.eventId < 0 || this.eventId >= this.group.events.length) return false;
-
-        return true;
-    }
-
     async performOperation() {
         const event = this.group.events[this.eventId];
 
@@ -288,11 +250,6 @@ export class UpdateQuestionDataBuilder extends OperationBuilder {
 
     constructor(group: Group) {
         super(group);
-    }
-
-    validateInput() {
-        if(this.eventId < 0 || this.eventId >= this.group.events.length) return false;
-        return true;
     }
 
     async performOperation() {

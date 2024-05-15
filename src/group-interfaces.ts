@@ -32,8 +32,8 @@ export type MemberProperty = "First Name" | "Last Name" | "UT EID" | "Email"
     | "Phone Number" | "Birthday" | "Major" | "Graduation Year" | "";
 
 export enum SourceType {
-    GoogleForms,
-    GoogleSheets
+    GoogleForms = "GoogleForms",
+    GoogleSheets = "GoogleSheets"
 }
 
 export interface QuestionPropertyMatch {

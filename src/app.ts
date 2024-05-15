@@ -24,6 +24,7 @@ authorizeGoogle()
         const app = express();
         app.use(express.json());
         app.use("/groups", groupRouter);
+        app.listen(SERVER_PORT);
         console.log("Listening on port " + SERVER_PORT);
     })
     .catch(reason => {
